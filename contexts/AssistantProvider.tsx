@@ -12,6 +12,7 @@ import * as Speech from "expo-speech";
 import { useRoam } from "./RoamProvider";
 import { sendMessageToRoam } from "../services/ai";
 import type { Message, VoiceState } from "../types/domain";
+import { placesService } from "../services/places";
 
 interface AssistantSession {
   messages: Message[];
@@ -23,12 +24,12 @@ interface AssistantSession {
 }
 const AssistantContext = createContext<AssistantSession | null>(null);
 export function AssistantProvider({ children }: PropsWithChildren) {
-  const { coordinate, destination, speedMph } = useRoam();
+  const { coordinate, destination, speedMph, tripState } = useRoam();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
       role: "assistant",
-      text: "Hey, I’m ROAM. A good road starts with a little curiosity. Where shall we go? Try a prompt below to explore the demo.",
+      text: "Hey, I’m ROAM. Where shall we go? Try a prompt below to find places. My conversation is simulated for now; destination search and trip controls handle your journey.",
     },
   ]);
   const [state, setState] = useState<VoiceState>("idle");
@@ -70,11 +71,12 @@ export function AssistantProvider({ children }: PropsWithChildren) {
       const reply = await sendMessageToRoam(text, {
         location: coordinate,
         destination,
-        activeRoute: null,
+        activeRoute: tripState.trip?.route ?? null,
         speedMph,
         time: new Date().toISOString(),
         weather: null,
         previousConversation: history,
+        placesMode: placesService.mode,
       });
       if (mounted.current)
         setMessages((previous) => [

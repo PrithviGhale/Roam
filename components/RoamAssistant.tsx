@@ -12,6 +12,7 @@ import { useAssistant } from "../contexts/AssistantProvider";
 import { useTheme } from "../themes/ThemeProvider";
 import type { PlaceCategory } from "../types/domain";
 import { Icon, IconButton } from "./ui";
+import { placesService } from "../services/places";
 
 const prompts = ["I’m hungry", "I need gas", "Find coffee", "Find a restroom"];
 export function RoamAssistant({
@@ -128,7 +129,9 @@ export function RoamAssistant({
                       fontWeight: "700",
                     }}
                   >
-                    Show demo places
+                    {placesService.mode === "google"
+                      ? "Search places"
+                      : "Show demo places"}
                   </Text>
                   <Icon name="arrow-forward" color={colors.accent} size={16} />
                 </Pressable>

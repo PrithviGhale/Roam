@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mockReply } from "../services/ai";
-import { placesService } from "../services/places";
-import { routesService } from "../services/routes";
+import { demoPlacesService as placesService } from "../services/demoPlaces";
+import { unconfiguredRoutesService as routesService } from "../services/routes";
 import { weatherService } from "../services/weather";
 import type { RoamContext, PlaceCategory } from "../types/domain";
 import { validCoordinate } from "../utils/location";
@@ -62,6 +62,21 @@ test("demo places are labeled, searchable, and anchored to the caller location",
   }))
     assert.equal(validCoordinate(place.coordinate), true);
 });
+test("configured assistant points to verified search and trip UI without pretending to navigate", () => {
+  const configured: RoamContext = { ...context, placesMode: "google" };
+  const coffee = mockReply("Add Starbucks as a stop", configured);
+  assert.equal(coffee.category, "coffee");
+  assert.match(coffee.text, /Google Places/);
+  assert.doesNotMatch(coffee.text, /added|fictional|demo ideas/i);
+  const route = mockReply("Navigate home", configured);
+  assert.match(route.text, /Google driving route/);
+  assert.match(route.text, /Turn-by-turn guidance is not implemented/);
+  assert.doesNotMatch(route.text, /doesn’t calculate routes/);
+  const traffic = mockReply("Any traffic?", configured);
+  assert.match(traffic.text, /Refresh route/);
+  assert.doesNotMatch(traffic.text, /explore the demo places/);
+});
+
 test("unconnected route and weather adapters fail explicitly", async () => {
   const origin = { latitude: 40, longitude: -73 };
   const destination = (await placesService.nearby("food", origin))[0]!;

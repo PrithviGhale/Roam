@@ -3,6 +3,7 @@ import { useRoam } from "../contexts/RoamProvider";
 import { useTheme } from "../themes/ThemeProvider";
 import { compassLabel } from "../utils/location";
 import { Eyebrow, Icon, Panel } from "./ui";
+import { SpeedDisplay } from "./SpeedDisplay";
 
 export function DrivingHUD() {
   const { speedMph, heading, status, fresh } = useRoam();
@@ -11,17 +12,7 @@ export function DrivingHUD() {
   } = useTheme();
   return (
     <Panel style={styles.panel}>
-      <View
-        style={styles.speed}
-        accessibilityLabel={
-          speedMph === null ? "Speed unavailable" : `${speedMph} miles per hour`
-        }
-      >
-        <Text style={[styles.number, { color: colors.text }]}>
-          {speedMph ?? "—"}
-        </Text>
-        <Eyebrow>MPH</Eyebrow>
-      </View>
+      <SpeedDisplay speedMph={speedMph} />
       <View style={[styles.divider, { backgroundColor: colors.border }]} />
       <View style={{ flex: 1, gap: 7 }}>
         <Eyebrow>ON THE ROAD</Eyebrow>
@@ -46,12 +37,5 @@ export function DrivingHUD() {
 }
 const styles = StyleSheet.create({
   panel: { flexDirection: "row", alignItems: "center", gap: 14, padding: 16 },
-  speed: { alignItems: "center", minWidth: 49, gap: 2 },
-  number: {
-    fontSize: 37,
-    fontWeight: "600",
-    fontVariant: ["tabular-nums"],
-    lineHeight: 43,
-  },
   divider: { width: 1, height: 46 },
 });

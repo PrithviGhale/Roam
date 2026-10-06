@@ -20,7 +20,10 @@ import { LocationNotice } from "../../components/LocationNotice";
 import { PlacesSheet } from "../../components/PlacesSheet";
 import { BottomSheet } from "../../components/BottomSheet";
 import { RoamAssistant } from "../../components/RoamAssistant";
-import { Eyebrow, Icon, IconButton, Panel } from "../../components/ui";
+import { NavigationSummary } from "../../components/NavigationSummary";
+import { Icon, IconButton, Panel } from "../../components/ui";
+import { hasGoogleServices } from "../../services/config";
+import { supportsGoogleMap } from "../../services/mapCapability";
 import type { PlaceCategory, Place } from "../../types/domain";
 
 export default function MapScreen() {
@@ -33,13 +36,16 @@ export default function MapScreen() {
     coordinate,
     heading,
     destination,
-    setDestination,
+    selectDestination,
+    tripState,
     fresh,
     status,
     retry,
   } = useRoam();
   const { stopVoice } = useAssistant();
+  const [googleSupported] = useState(supportsGoogleMap);
   const [recenter, setRecenter] = useState(0);
+  const [bottomHeight, setBottomHeight] = useState(240);
   const [placesOpen, setPlacesOpen] = useState(false);
   const [category, setCategory] = useState<PlaceCategory | null>(null);
   const [assistantOpen, setAssistantOpen] = useState(false);
@@ -50,7 +56,7 @@ export default function MapScreen() {
     setPlacesOpen(true);
   };
   const select = (place: Place) => {
-    setDestination(place);
+    void selectDestination(place);
     setPlacesOpen(false);
   };
   return (
@@ -59,8 +65,10 @@ export default function MapScreen() {
         coordinate={coordinate}
         heading={heading}
         destination={destination}
+        route={tripState.trip?.route ?? null}
+        stops={tripState.trip?.stops ?? []}
         recenterToken={recenter}
-        bottomInset={compact ? 130 : 180}
+        bottomInset={bottomHeight + 16}
       />
       <View
         pointerEvents="box-none"
@@ -85,7 +93,7 @@ export default function MapScreen() {
             <Text
               style={{ color: colors.muted, fontSize: 9, letterSpacing: 1 }}
             >
-              V0.1
+              V0.2
             </Text>
           </View>
           <View style={{ flex: 1 }} />
@@ -99,17 +107,27 @@ export default function MapScreen() {
           <SearchBar onPress={() => openPlaces(null)} />
         </View>
         <QuickActions onSelect={openPlaces} />
-        {Platform.OS === "web" && (
+        {!compact && (
           <View style={{ paddingHorizontal: 20, paddingTop: 10 }}>
             <Panel style={{ padding: 10 }}>
               <Text style={{ color: colors.muted, fontSize: 10 }}>
-                Browser UI preview · Open on iPhone for the interactive map.
+                {Platform.OS === "web"
+                  ? "Browser UI preview · Native Google map runs on your phone."
+                  : !hasGoogleServices
+                    ? "Demo mode · Configure Google for real places and routes."
+                    : !googleSupported
+                      ? "Google map support is missing. Use a Google-enabled iOS development build to display routes."
+                      : "Google Places + Routes · Ready for your next destination."}
               </Text>
             </Panel>
           </View>
         )}
       </View>
-      <View pointerEvents="box-none" style={styles.bottom}>
+      <View
+        pointerEvents="box-none"
+        style={styles.bottom}
+        onLayout={(event) => setBottomHeight(event.nativeEvent.layout.height)}
+      >
         <View
           style={{ alignItems: "flex-end", marginBottom: compact ? 8 : 14 }}
         >
@@ -122,70 +140,9 @@ export default function MapScreen() {
             }}
           />
         </View>
-        {destination ? (
-          <Panel
-            style={{ marginBottom: 12, padding: compact ? 10 : 15, gap: 9 }}
-          >
-            <View
-              style={{ flexDirection: "row", gap: 10, alignItems: "center" }}
-            >
-              <Icon name="flag-outline" color={colors.accent} />
-              <View style={{ flex: 1, gap: 4 }}>
-                <Eyebrow>DESTINATION PREVIEW · DEMO</Eyebrow>
-                <Text
-                  numberOfLines={1}
-                  style={{
-                    color: colors.text,
-                    fontSize: 17,
-                    fontWeight: "600",
-                  }}
-                >
-                  {destination.name}
-                </Text>
-              </View>
-              <IconButton
-                icon="close"
-                label="Clear destination"
-                onPress={() => setDestination(null)}
-                style={{ width: 44, height: 44 }}
-              />
-            </View>
-            {!compact && (
-              <Text style={{ color: colors.muted, fontSize: 11 }}>
-                Sample pin only. Live routes and turn-by-turn guidance are
-                coming next.
-              </Text>
-            )}
-          </Panel>
-        ) : (
-          !compact && (
-            <View
-              pointerEvents="none"
-              style={{ marginBottom: 12, alignItems: "flex-start" }}
-            >
-              <View
-                style={[
-                  styles.locationBadge,
-                  { backgroundColor: colors.surface },
-                ]}
-              >
-                <Icon name="radio-outline" color={colors.accent} size={13} />
-                <Text
-                  style={{ color: colors.muted, fontSize: 9, letterSpacing: 1 }}
-                >
-                  {Platform.OS === "web"
-                    ? "ILLUSTRATED MAP PREVIEW"
-                    : coordinate
-                      ? fresh
-                        ? "LIVE LOCATION"
-                        : "LAST KNOWN POSITION"
-                      : "EXPLORE THE MAP"}
-                </Text>
-              </View>
-            </View>
-          )
-        )}
-        {Platform.OS !== "web" && (status !== "ready" || !fresh) ? (
+        {tripState.trip ? (
+          <NavigationSummary compact={compact} />
+        ) : Platform.OS !== "web" && (status !== "ready" || !fresh) ? (
           <LocationNotice />
         ) : (
           <DrivingHUD />
@@ -197,6 +154,7 @@ export default function MapScreen() {
           style={({ pressed }) => [
             styles.ask,
             { backgroundColor: colors.accent, opacity: pressed ? 0.8 : 1 },
+            compact && { minHeight: 54 },
           ]}
         >
           <View style={[styles.mic, { borderColor: colors.onAccent + "30" }]}>
@@ -212,11 +170,13 @@ export default function MapScreen() {
             >
               Ask ROAM
             </Text>
-            <Text
-              style={{ color: colors.onAccent, fontSize: 10, opacity: 0.75 }}
-            >
-              A little help. A better journey.
-            </Text>
+            {!compact && (
+              <Text
+                style={{ color: colors.onAccent, fontSize: 10, opacity: 0.75 }}
+              >
+                A little help. A better journey.
+              </Text>
+            )}
           </View>
           <Icon name="sparkles-outline" color={colors.onAccent} size={22} />
         </Pressable>
@@ -262,14 +222,6 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   bottom: { position: "absolute", left: 20, right: 20, bottom: 16 },
-  locationBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 12,
-  },
   ask: {
     minHeight: 68,
     borderRadius: 23,

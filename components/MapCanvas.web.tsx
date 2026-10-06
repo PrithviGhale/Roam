@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { useTheme } from "../themes/ThemeProvider";
+import { hasGoogleServices } from "../services/config";
 import { Icon } from "./ui";
 import type { MapCanvasProps } from "./MapCanvas.types";
 
@@ -8,6 +9,25 @@ export function MapCanvas({ destination }: MapCanvasProps) {
   const {
     theme: { colors },
   } = useTheme();
+  if (hasGoogleServices)
+    return (
+      <View
+        style={[
+          StyleSheet.absoluteFill,
+          {
+            backgroundColor: colors.background,
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 30,
+          },
+        ]}
+      >
+        <Text style={{ color: colors.muted, textAlign: "center" }}>
+          Browser UI preview. Open ROAM on iPhone with the Google Maps provider
+          to view the driving route.
+        </Text>
+      </View>
+    );
   return (
     <View
       style={[
@@ -114,7 +134,7 @@ export function MapCanvas({ destination }: MapCanvasProps) {
       >
         <Icon name="navigate" color={colors.accent} size={25} />
       </View>
-      {destination && (
+      {destination?.source === "mock" && (
         <View style={{ position: "absolute", top: "40%", left: "65%" }}>
           <Icon name="location" size={34} color={colors.accent} />
         </View>

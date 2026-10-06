@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { StyleSheet, View } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import { StyleSheet, Text, View } from "react-native";
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import { useTheme } from "../themes/ThemeProvider";
 import { mapsService } from "../services/maps";
+import { hasGoogleServices } from "../services/config";
+import { supportsGoogleMap } from "../services/mapCapability";
 import { Icon } from "./ui";
 import type { MapCanvasProps } from "./MapCanvas.types";
 
@@ -12,43 +14,94 @@ export function MapCanvas({
   destination,
   recenterToken,
   bottomInset,
+  route,
+  stops,
 }: MapCanvasProps) {
   const { theme } = useTheme();
   const map = useRef<MapView>(null);
   const [ready, setReady] = useState(false);
+  const [googleSupported] = useState(supportsGoogleMap);
+  const google = hasGoogleServices && googleSupported;
   const hasCentered = useRef(false);
-  const latestCoordinate = useRef(coordinate);
-  latestCoordinate.current = coordinate;
+  const latest = useRef({ coordinate, bottomInset });
+  latest.current = { coordinate, bottomInset };
   useEffect(() => {
-    if (!ready || !coordinate || hasCentered.current) return;
+    if (!ready || !coordinate || hasCentered.current || route) return;
     hasCentered.current = true;
     map.current?.animateToRegion(mapsService.regionFor(coordinate), 700);
-  }, [coordinate, ready]);
+  }, [coordinate, ready, route]);
   useEffect(() => {
     if (ready && recenterToken > 0)
       map.current?.animateToRegion(
-        mapsService.regionFor(latestCoordinate.current),
+        mapsService.regionFor(latest.current.coordinate),
         500,
       );
   }, [recenterToken, ready]);
   useEffect(() => {
-    if (!ready || !destination) return;
-    const points = latestCoordinate.current
-      ? [latestCoordinate.current, destination.coordinate]
+    if (!ready || !route || !google) return;
+    hasCentered.current = true;
+    const points = [
+      ...route.geometry,
+      route.destination.coordinate,
+      ...stops.map((stop) => stop.place.coordinate),
+    ];
+    if (latest.current.coordinate) points.push(latest.current.coordinate);
+    map.current?.fitToCoordinates(points, {
+      animated: true,
+      edgePadding: {
+        top: 200,
+        left: 40,
+        right: 40,
+        bottom: latest.current.bottomInset,
+      },
+    });
+    // GPS and overlay-height changes must not steal a panned camera.
+  }, [route, ready, google]);
+  useEffect(() => {
+    if (!ready || !destination || destination.source !== "mock") return;
+    const points = latest.current.coordinate
+      ? [latest.current.coordinate, destination.coordinate]
       : [destination.coordinate];
     map.current?.fitToCoordinates(points, {
       animated: true,
-      edgePadding: { top: 210, left: 55, right: 55, bottom: bottomInset + 80 },
+      edgePadding: { top: 210, left: 55, right: 55, bottom: 200 },
     });
-  }, [destination, ready, bottomInset]);
+  }, [destination, ready]);
+  if (hasGoogleServices && !googleSupported)
+    return (
+      <View
+        style={[
+          StyleSheet.absoluteFill,
+          {
+            backgroundColor: theme.colors.background,
+            alignItems: "center",
+            justifyContent: "center",
+            paddingHorizontal: 35,
+          },
+        ]}
+      >
+        <Text
+          style={{
+            color: theme.colors.muted,
+            fontSize: 13,
+            textAlign: "center",
+            lineHeight: 21,
+          }}
+        >
+          This build does not include native Google Maps.\nOpen ROAM in a
+          Google-enabled iOS development build to display real routes.
+        </Text>
+      </View>
+    );
   return (
     <MapView
       ref={map}
       style={StyleSheet.absoluteFill}
+      provider={google ? PROVIDER_GOOGLE : undefined}
       initialRegion={mapsService.regionFor(coordinate)}
       onMapReady={() => setReady(true)}
       userInterfaceStyle={theme.id}
-      customMapStyle={theme.mapStyle}
+      customMapStyle={google ? theme.mapStyle : undefined}
       showsCompass
       showsScale
       rotateEnabled
@@ -56,8 +109,22 @@ export function MapCanvas({
       showsUserLocation={false}
       showsMyLocationButton={false}
       toolbarEnabled={false}
-      mapPadding={{ top: 210, right: 15, bottom: bottomInset, left: 15 }}
+      mapPadding={{ top: 200, right: 15, bottom: bottomInset, left: 15 }}
     >
+      {google && route && (
+        <>
+          <Polyline
+            coordinates={route.geometry}
+            strokeColor={theme.colors.onAccent}
+            strokeWidth={9}
+          />
+          <Polyline
+            coordinates={route.geometry}
+            strokeColor={theme.colors.accent}
+            strokeWidth={5}
+          />
+        </>
+      )}
       {coordinate && (
         <Marker
           coordinate={coordinate}
@@ -94,14 +161,64 @@ export function MapCanvas({
           </View>
         </Marker>
       )}
-      {destination && (
+      {(google || destination?.source === "mock") && destination && (
         <Marker
           coordinate={destination.coordinate}
           title={destination.name}
-          description="Fictional demo place"
-          pinColor={theme.colors.accent}
-        />
+          description={
+            destination.source === "mock"
+              ? "Fictional demo place"
+              : "Final destination"
+          }
+        >
+          <View
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 14,
+              backgroundColor: theme.colors.text,
+              borderWidth: 2,
+              borderColor: theme.colors.accent,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Icon name="flag" color={theme.colors.background} size={20} />
+          </View>
+        </Marker>
       )}
+      {google &&
+        stops.map((stop, index) => (
+          <Marker
+            key={stop.id}
+            coordinate={stop.place.coordinate}
+            title={stop.place.name}
+            description={`Stop ${index + 1}`}
+          >
+            <View
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 17,
+                backgroundColor: theme.colors.accent,
+                borderWidth: 2,
+                borderColor: theme.colors.background,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text
+                style={{
+                  color: theme.colors.onAccent,
+                  fontSize: 14,
+                  fontWeight: "700",
+                }}
+              >
+                {index + 1}
+              </Text>
+            </View>
+          </Marker>
+        ))}
     </MapView>
   );
 }

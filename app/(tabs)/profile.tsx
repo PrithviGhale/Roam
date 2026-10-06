@@ -87,9 +87,9 @@ export default function ProfileScreen() {
               : "Waiting for location"}
         </Text>
         <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 20 }}>
-          ROAM uses location while the app is open. Conversations stay in
-          memory; there is no ROAM backend yet. The native map provider may
-          process the map area you view.
+          ROAM uses location while the app is open. Google receives location
+          when you request places or routes. Conversations stay in memory; no AI
+          provider receives them. No long-term location history is stored.
         </Text>
         {(status !== "ready" || !fresh) && (
           <Button secondary onPress={retry}>
@@ -102,11 +102,11 @@ export default function ProfileScreen() {
       <View style={{ gap: 10 }}>
         <Eyebrow>BUILT FOR WHAT’S AHEAD</Eyebrow>
         <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 21 }}>
-          Live AI, verified places, navigation, and voice recognition are the
-          next chapters. This version is your map and interface foundation.
+          Real places, route previews, and stops are here. Live AI, full
+          navigation, and voice recognition are the next chapters.
         </Text>
         <Text style={{ color: colors.accent, fontSize: 12, fontWeight: "600" }}>
-          ROAM 0.1.0 · Your AI for the road.
+          ROAM 0.2.0 · Your AI for the road.
         </Text>
       </View>
     </Page>

@@ -71,12 +71,22 @@ export interface Weather {
   description: string;
   observedAt: string;
 }
-export type VoiceState = "idle" | "listening" | "processing" | "speaking";
+export type VoiceState =
+  | "idle"
+  | "listening"
+  | "transcribing"
+  | "thinking"
+  | "usingTool"
+  | "speaking"
+  | "error";
 export interface Message {
   id: string;
   role: "user" | "assistant";
   text: string;
   category?: PlaceCategory;
+  places?: Place[];
+  spokenText?: string;
+  error?: boolean;
 }
 export interface RoamContext {
   location: Coordinate | null;

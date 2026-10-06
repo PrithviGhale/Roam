@@ -21,6 +21,7 @@ type RoamSession = ReturnType<typeof useLocation> & {
   startTrip: TripController["start"];
   cancelTrip: TripController["cancel"];
   retryRoute: TripController["retry"];
+  applyAssistantStops: TripController["applyStopsAtomic"];
 };
 const RoamContext = createContext<RoamSession | null>(null);
 export function RoamProvider({ children }: PropsWithChildren) {
@@ -59,6 +60,7 @@ export function RoamProvider({ children }: PropsWithChildren) {
         startTrip: controller.start,
         cancelTrip: controller.cancel,
         retryRoute: controller.retry,
+        applyAssistantStops: controller.applyStopsAtomic,
       }}
     >
       {children}

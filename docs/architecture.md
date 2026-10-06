@@ -1,6 +1,18 @@
-# V0.2 architecture
+# V0.3 architecture
 
-Expo Router retains four tabs. ThemeProvider persists only the theme. RoamProvider retains the single foreground GPS subscription and hosts a subscribable TripController using `useSyncExternalStore`. AssistantProvider retains the shared conversation and simulated voice states / native read-aloud behavior.
+Expo Router retains four tabs. ThemeProvider persists only the theme. RoamProvider retains the single foreground GPS subscription and hosts a subscribable TripController using `useSyncExternalStore`. AssistantProvider owns session conversation, bounded requests, optional native push-to-talk, and read-aloud state. V0.2 was checkpointed before these changes.
+
+## AI boundaries
+
+`shared/assistant.ts` defines strict Zod tool/wire schemas and SDK function declarations. `server/src/gemini.ts` uses the current Google GenAI SDK and Flash model. The Worker signs stateless continuations (two-minute expiry) preserving original model parts/thought signatures; the phone returns validated receipts matched to issued calls. No polylines, precise GPS or GPS history are sent to Gemini. Each message is limited to twelve history items, three model calls, six local tools and one trip mutation.
+
+`services/assistant/engine.ts` executes the allowlisted tools using the existing providers/controller. `references.ts` resolves actual displayed IDs/order and ten-minute pending confirmations. User ordinals override incorrect model targets. Ambiguous removal ignores model guesses. `context.ts` projects the same local trip progress as the HUD and builds compact facts. Free-form model factual prose never renders: a validated response plan selects grounded result/status/mutation/clarification templates. Only successful receipts acknowledge route changes.
+
+`TripController.applyStopsAtomic` is the assistant transaction boundary. It guards the captured trip identity, calculates before replacing the plan, and restores the previous state on failure/abort if no newer action superseded it. UI add/remove behavior stays compatible with V0.2. Searches and AI errors cannot clear routes.
+
+The Worker also implements V0.2's Google proxy contract with fixed endpoints/masks, bounded operation schemas, private REST credentials, sanitized errors, request-body limits and native rate-limit bindings. A shared prototype token is required on published hosts; local trusted LAN use can omit it. The token is public in the phone and is not user authentication. Browser origins are allowlisted. Rate bindings are per Cloudflare location. All request state is local to the request or signed continuation; there is no persistent conversation store.
+
+`services/speechInput.ts` looks up the optional native speech module without importing a missing module into Expo Go. Native builds register bounded foreground capture, permission/final-result/error/end listeners and cancellation. Expo Go/web keep text and TTS. Recognition never persists audio files; iOS may use its online speech service. Automatic speech uses concise grounded text, supports interruption, and stops on assistant dismissal/app background.
 
 ## Trip state
 
@@ -16,7 +28,7 @@ The route-progress hook performs local GPS projection only. After Start Trip it 
 
 `usePlaces` debounces autocomplete and snapshots location/route on sheet opening, category change, or explicit retry. Cleanup aborts and ignores stale results. `routeAware.ts` is pure geometry/ranking: project driver, sample 2/8 km ahead, deduplicate, filter behind/outside corridor, and rank convenience. At most two Nearby Search requests are issued. Partial success remains usable; all-failed searches show an error. No GPS-driven API calls, per-result driving detours, persistent result cache, or automatic retry loops are added.
 
-`services/tools.ts` exposes `searchFood`, `searchGas`, `searchRestrooms`, `searchCoffee`, `searchParking`, `addTripStop`, `removeTripStop`, and `getCurrentRoute` using the same providers/controller. It is a factory for a future tool runtime, not an AI integration. Future server tools must validate arguments, authenticate clients, protect keys, and return verified data; AI should not invent map facts or silently mutate trips.
+`services/tools.ts` exposes reusable category/qualified searches and current-route access with a typed TripPort. The assistant engine adds status, guarded add/remove/cancel execution using this same provider/controller boundary. Server declarations and client argument validation use the central shared schemas. Per-user authentication remains a future improvement; the prototype protects published requests with a shared testing token.
 
 ## Map and UI
 

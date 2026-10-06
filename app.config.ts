@@ -3,7 +3,7 @@ import type { ExpoConfig } from "expo/config";
 const config: ExpoConfig = {
   name: "ROAM",
   slug: "roam",
-  version: "0.2.0",
+  version: "0.3.0",
   orientation: "portrait",
   scheme: "roam",
   userInterfaceStyle: "automatic",
@@ -30,7 +30,17 @@ const config: ExpoConfig = {
   web: { bundler: "metro", output: "single" },
   plugins: [
     "expo-router",
+    "expo-dev-client",
     "expo-font",
+    [
+      "expo-speech-recognition",
+      {
+        microphonePermission:
+          "ROAM uses the microphone only when you tap to speak.",
+        speechRecognitionPermission:
+          "ROAM turns your spoken requests into text so you can ask your driving assistant.",
+      },
+    ],
     [
       "expo-location",
       {

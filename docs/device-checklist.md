@@ -1,4 +1,4 @@
-# Physical iPhone verification · V0.2
+# Physical iPhone verification · V0.3 map regression
 
 Status: not yet executed on a physical iPhone. Run these checks while stationary. Record model, iOS version, Expo Go / development-build version, key restriction mode (without the key), and failures.
 
@@ -24,6 +24,6 @@ Status: not yet executed on a physical iPhone. Run these checks while stationary
 
 13. Test invalid/restricted key, billing-disabled or quota-limited project, unreachable destination, airplane mode, and request timeout. Confirm readable errors and retry, with no fictional replacement results. Restore configuration/network and retry. Do not log or share credentials.
 14. In Google Cloud verify restrictions reject an incorrect bundle identifier where supported. Verify each REST API independently; use the backend approach if mobile restriction support is insufficient. Check native map key restrictions independently from REST keys.
-15. Switch Dark / Light on every tab, open/dismiss keyboard and sheets, check assistant shared conversation and read-aloud / stop speech. Assistant and microphone remain labeled demo. Test a small iPhone, notch/Dynamic Island, large text, long destination names, and scrolling/attribution visibility. Theme should survive restart; trips should not.
+15. Switch Dark / Light on every tab, open/dismiss keyboard and sheets, check assistant shared conversation and read-aloud / stop speech. Missing backend configuration should remain labeled demo; configured Gemini and development-build speech follow [the assistant checklist](assistant-checklist.md). Test a small iPhone, notch/Dynamic Island, large text, long destination names, and scrolling/attribution visibility. Theme should survive restart; trips should not.
 
 Record actual results; passing a bundle export is not evidence that any physical-device step above passed.

@@ -1,4 +1,6 @@
 // Expo only inlines public variables referenced with static dot notation.
+export const roamAccessToken =
+  process.env.EXPO_PUBLIC_ROAM_ACCESS_TOKEN?.trim() ?? "";
 export const googleConfiguration = {
   apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY?.trim() ?? "",
   proxyUrl:

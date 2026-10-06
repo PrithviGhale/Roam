@@ -1,0 +1,6 @@
+# Copy to .dev.vars. Never commit real values.
+GEMINI_API_KEY=
+GOOGLE_MAPS_API_KEY=
+# Optional shared prototype access token. Public on the phone; NOT user auth.
+# Set the same value as client EXPO_PUBLIC_ROAM_ACCESS_TOKEN.
+ROAM_ACCESS_TOKEN=

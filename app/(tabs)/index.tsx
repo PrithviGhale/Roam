@@ -93,7 +93,7 @@ export default function MapScreen() {
             <Text
               style={{ color: colors.muted, fontSize: 9, letterSpacing: 1 }}
             >
-              V0.2
+              V0.3
             </Text>
           </View>
           <View style={{ flex: 1 }} />

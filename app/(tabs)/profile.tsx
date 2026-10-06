@@ -88,8 +88,10 @@ export default function ProfileScreen() {
         </Text>
         <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 20 }}>
           ROAM uses location while the app is open. Google receives location
-          when you request places or routes. Conversations stay in memory; no AI
-          provider receives them. No long-term location history is stored.
+          when you request places or routes. When Gemini is configured, your
+          message and a compact trip summary go through the ROAM backend to
+          Google AI. No GPS history or route polyline is sent to Gemini. There
+          is no long-term app conversation or location-history storage.
         </Text>
         {(status !== "ready" || !fresh) && (
           <Button secondary onPress={retry}>
@@ -102,11 +104,12 @@ export default function ProfileScreen() {
       <View style={{ gap: 10 }}>
         <Eyebrow>BUILT FOR WHAT’S AHEAD</Eyebrow>
         <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 21 }}>
-          Real places, route previews, and stops are here. Live AI, full
-          navigation, and voice recognition are the next chapters.
+          Real places and trip tools are ready for Gemini through your backend.
+          Push-to-talk needs a development build; text input works in Expo Go.
+          Full navigation is a future chapter.
         </Text>
         <Text style={{ color: colors.accent, fontSize: 12, fontWeight: "600" }}>
-          ROAM 0.2.0 · Your AI for the road.
+          ROAM 0.3.0 · Your AI for the road.
         </Text>
       </View>
     </Page>

@@ -13,8 +13,11 @@ import { useTheme } from "../themes/ThemeProvider";
 import type { PlaceCategory } from "../types/domain";
 import { Icon, IconButton } from "./ui";
 import { placesService } from "../services/places";
+import { PlaceList } from "./PlaceList";
+import { GoogleAttribution } from "./GoogleAttribution";
+import { useRoam } from "../contexts/RoamProvider";
 
-const prompts = ["I’m hungry", "I need gas", "Find coffee", "Find a restroom"];
+const prompts = ["I’m hungry", "I need gas", "I need to pee", "What’s my ETA?"];
 export function RoamAssistant({
   onPlaces,
 }: {
@@ -23,10 +26,24 @@ export function RoamAssistant({
   const {
     theme: { colors },
   } = useTheme();
-  const { messages, state, send, toggleVoice, speak } = useAssistant();
+  const {
+    messages,
+    state,
+    mode,
+    send,
+    addPlace,
+    toggleVoice,
+    speak,
+    autoSpeak,
+    setAutoSpeak,
+    voiceNotice,
+    transcript,
+  } = useAssistant();
+  const { tripState } = useRoam();
   const [draft, setDraft] = useState("");
   const scroll = useRef<ScrollView>(null);
-  const processing = state === "processing";
+  const processing =
+    state === "thinking" || state === "usingTool" || state === "transcribing";
   const submit = () => {
     if (!draft.trim() || processing) return;
     void send(draft);
@@ -50,16 +67,38 @@ export function RoamAssistant({
             fontSize: 10,
             letterSpacing: 1,
             fontWeight: "700",
+            flexShrink: 1,
+            lineHeight: 15,
           }}
         >
           {state === "idle"
-            ? "YOUR AI FOR THE ROAD · DEMO"
+            ? mode === "gemini"
+              ? "YOUR AI FOR THE ROAD · GEMINI"
+              : "YOUR AI FOR THE ROAD · DEMO"
             : state === "listening"
-              ? "VOICE DEMO · CHOOSE A PROMPT"
-              : state === "processing"
-                ? "THINKING…"
-                : "SPEAKING · TAP MIC TO STOP"}
+              ? "LISTENING · TAP MIC TO FINISH"
+              : state === "usingTool"
+                ? "CHECKING PLACES AND YOUR TRIP…"
+                : state === "thinking"
+                  ? "THINKING…"
+                  : state === "transcribing"
+                    ? "FINISHING YOUR REQUEST…"
+                    : state === "error"
+                      ? "TRY AGAIN WHEN YOU’RE READY"
+                      : "SPEAKING · TAP MIC TO STOP"}
         </Text>
+        <View style={{ flex: 1 }} />
+        <Pressable
+          accessibilityRole="switch"
+          accessibilityState={{ checked: autoSpeak }}
+          accessibilityLabel="Automatic concise voice replies"
+          onPress={() => setAutoSpeak(!autoSpeak)}
+          style={{ minHeight: 44, justifyContent: "center" }}
+        >
+          <Text style={{ color: colors.muted, fontSize: 10 }}>
+            Voice replies {autoSpeak ? "on" : "off"}
+          </Text>
+        </Pressable>
       </View>
       <ScrollView
         ref={scroll}
@@ -75,6 +114,7 @@ export function RoamAssistant({
             style={{
               alignSelf: message.role === "user" ? "flex-end" : "flex-start",
               maxWidth: "94%",
+              ...(message.places?.length ? { width: "100%" as const } : {}),
               gap: 6,
             }}
           >
@@ -101,7 +141,11 @@ export function RoamAssistant({
               ]}
             >
               <Text
-                style={{ color: colors.text, fontSize: 15, lineHeight: 23 }}
+                style={{
+                  color: message.error ? colors.danger : colors.text,
+                  fontSize: 15,
+                  lineHeight: 23,
+                }}
               >
                 {message.text}
               </Text>
@@ -137,11 +181,33 @@ export function RoamAssistant({
                 </Pressable>
               )}
             </View>
+            {message.places && message.places.length > 0 && (
+              <View style={{ gap: 8, width: "100%" }}>
+                <PlaceList
+                  places={message.places}
+                  numbered
+                  actionLabel="Add Stop"
+                  disabled={
+                    processing ||
+                    tripState.status !== "ready" ||
+                    !tripState.trip?.route
+                  }
+                  onSelect={(place) => void addPlace(place)}
+                />
+                <GoogleAttribution places={message.places} />
+                <Text style={{ color: colors.muted, fontSize: 10 }}>
+                  Use a card, or type “add the second one.”{" "}
+                  {tripState.trip?.route
+                    ? ""
+                    : "Choose a destination on the map before adding stops."}
+                </Text>
+              </View>
+            )}
             {message.role === "assistant" && (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Read ROAM response aloud"
-                onPress={() => speak(message.text)}
+                onPress={() => speak(message.spokenText ?? message.text)}
                 style={{
                   minHeight: 44,
                   minWidth: 44,
@@ -159,13 +225,17 @@ export function RoamAssistant({
           </View>
         ))}
         {processing && (
-          <ActivityIndicator
-            color={colors.accent}
-            accessibilityLabel="ROAM is processing"
-          />
+          <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+            <ActivityIndicator color={colors.accent} />
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {state === "usingTool"
+                ? "Finding options or updating your trip…"
+                : "Checking your request…"}
+            </Text>
+          </View>
         )}
       </ScrollView>
-      {state === "listening" && (
+      {(state === "listening" || voiceNotice) && (
         <View
           style={[styles.voiceDemo, { backgroundColor: colors.accentSoft }]}
         >
@@ -174,11 +244,14 @@ export function RoamAssistant({
             <Text
               style={{ color: colors.text, fontWeight: "600", fontSize: 13 }}
             >
-              Imagine saying “Hey ROAM…”
+              {voiceNotice
+                ? "Text input is always available"
+                : "Listening to your request"}
             </Text>
             <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 17 }}>
-              Voice preview only. No audio is recorded. Choose a sample below or
-              type your request.
+              {voiceNotice ??
+                (transcript ||
+                  "Speak now. Tap the microphone to finish. No wake word or background listening.")}
             </Text>
           </View>
         </View>
@@ -217,8 +290,18 @@ export function RoamAssistant({
         }}
       >
         <IconButton
-          icon={state === "speaking" ? "stop" : "mic-outline"}
-          label={state === "speaking" ? "Stop speaking" : "Open voice demo"}
+          icon={
+            state === "speaking" || state === "listening"
+              ? "stop"
+              : "mic-outline"
+          }
+          label={
+            state === "speaking"
+              ? "Stop speaking"
+              : state === "listening"
+                ? "Finish speaking"
+                : "Speak to ROAM"
+          }
           active={state === "listening" || state === "speaking"}
           onPress={toggleVoice}
         />

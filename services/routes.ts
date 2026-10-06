@@ -1,5 +1,9 @@
 import type { RoutesService } from "../types/domain";
-import { hasGoogleServices, googleConfiguration } from "./config";
+import {
+  hasGoogleServices,
+  googleConfiguration,
+  roamAccessToken,
+} from "./config";
 import { createGoogleClient } from "./google/client";
 import { createGoogleRoutesService } from "./google/routes";
 import { ServiceError } from "./errors";
@@ -13,5 +17,10 @@ export const unconfiguredRoutesService: RoutesService = {
   },
 };
 export const routesService: RoutesService = hasGoogleServices
-  ? createGoogleRoutesService(createGoogleClient(googleConfiguration))
+  ? createGoogleRoutesService(
+      createGoogleClient({
+        ...googleConfiguration,
+        accessToken: roamAccessToken,
+      }),
+    )
   : unconfiguredRoutesService;

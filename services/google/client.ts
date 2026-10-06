@@ -16,6 +16,7 @@ export interface ClientConfiguration {
   iosBundleIdentifier?: string;
   fetch?: typeof fetch;
   timeoutMs?: number;
+  accessToken?: string;
 }
 export function createGoogleClient(
   configuration: ClientConfiguration,
@@ -47,6 +48,8 @@ export function createGoogleClient(
           "Content-Type": "application/json",
         };
         if (proxy) {
+          if (configuration.accessToken)
+            headers.Authorization = `Bearer ${configuration.accessToken}`;
           // A backend must implement this bounded contract, validate requests, authenticate clients,
           // inject its server key and set field masks. Never forward arbitrary client URLs.
           url = `${proxy}/google/${request.operation}`;

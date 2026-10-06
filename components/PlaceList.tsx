@@ -8,27 +8,34 @@ import { Icon } from "./ui";
 export function PlaceList({
   places,
   onSelect,
+  numbered = false,
+  actionLabel,
+  disabled = false,
 }: {
   places: Place[];
   onSelect: (place: Place) => void;
+  numbered?: boolean;
+  actionLabel?: string;
+  disabled?: boolean;
 }) {
   const {
     theme: { colors },
   } = useTheme();
   return (
     <View style={{ gap: 10 }}>
-      {places.map((place) => (
+      {places.map((place, index) => (
         <Pressable
           key={place.id}
           accessibilityRole="button"
-          accessibilityLabel={`View ${place.name}${place.source === "mock" ? ", demo place" : ""}`}
+          accessibilityLabel={`${actionLabel ?? "View"} ${place.name}${place.source === "mock" ? ", demo place" : ""}`}
+          disabled={disabled}
           onPress={() => onSelect(place)}
           style={({ pressed }) => [
             styles.row,
             {
               backgroundColor: colors.surface,
               borderColor: colors.border,
-              opacity: pressed ? 0.6 : 1,
+              opacity: pressed || disabled ? 0.6 : 1,
             },
           ]}
         >
@@ -46,6 +53,7 @@ export function PlaceList({
             <Text
               style={{ color: colors.text, fontSize: 15, fontWeight: "600" }}
             >
+              {numbered ? `${index + 1}. ` : ""}
               {place.name}
             </Text>
             <Text style={{ color: colors.muted, fontSize: 11 }}>
@@ -95,11 +103,24 @@ export function PlaceList({
               </>
             )}
           </View>
-          <Icon
-            name="arrow-up-right-box-outline"
-            size={18}
-            color={colors.muted}
-          />
+          <View style={{ gap: 5, alignItems: "center" }}>
+            {actionLabel && (
+              <Text
+                style={{
+                  color: colors.accent,
+                  fontSize: 10,
+                  fontWeight: "600",
+                }}
+              >
+                {actionLabel}
+              </Text>
+            )}
+            <Icon
+              name="arrow-up-right-box-outline"
+              size={18}
+              color={colors.muted}
+            />
+          </View>
         </Pressable>
       ))}
     </View>

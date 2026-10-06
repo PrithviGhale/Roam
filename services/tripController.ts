@@ -115,6 +115,62 @@ export class TripController {
       trip: { ...this.state.trip, startedAt: new Date().toISOString() },
     });
   };
+  // Assistant mutations are transactional: never replace a valid plan on API failure.
+  applyStopsAtomic = async (
+    expected: ActiveTrip,
+    stops: ActiveTrip["stops"],
+    signal?: AbortSignal,
+  ): Promise<boolean> => {
+    const previous = this.state;
+    if (
+      signal?.aborted ||
+      previous.trip !== expected ||
+      previous.status !== "ready" ||
+      !expected.route ||
+      stops.length > 5 ||
+      stops.some(
+        (stop) =>
+          stop.place.source !== "verified" ||
+          !validCoordinate(stop.place.coordinate) ||
+          stop.place.id === expected.destination.id,
+      ) ||
+      new Set(stops.map((stop) => stop.id)).size !== stops.length
+    )
+      return false;
+    const origin = this.getOrigin();
+    if (!origin || !validCoordinate(origin)) return false;
+    const generation = ++this.generation;
+    this.request?.abort();
+    const request = new AbortController();
+    this.request = request;
+    const abort = () => request.abort();
+    signal?.addEventListener("abort", abort, { once: true });
+    this.update({ ...previous, status: "loading", error: null });
+    try {
+      const route = await this.routes.getRoute(
+        origin,
+        expected.destination,
+        stops,
+        { signal: request.signal },
+      );
+      if (generation !== this.generation || request.signal.aborted)
+        return false;
+      this.update({
+        trip: { ...expected, stops, route },
+        status: "ready",
+        error: null,
+      });
+      return true;
+    } catch {
+      return false;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      if (generation === this.generation) {
+        if (this.state.status === "loading") this.update(previous);
+        this.request = null;
+      }
+    }
+  };
   private async calculate(trip: ActiveTrip) {
     const generation = ++this.generation;
     this.request?.abort();

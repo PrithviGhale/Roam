@@ -7,15 +7,25 @@ import type {
 } from "../types/domain";
 import { validCoordinate } from "../utils/location";
 import { errorMessage, isCancelled, ServiceError } from "./errors";
+import { RouteDeviationMonitor, type TrackingFix } from "./routeTracking";
+import { LIMITS } from "../shared/limits";
+import { detourInsertionIndex } from "./detours";
+import { distanceBetween } from "../utils/geo";
+import { tripProgress } from "../utils/tripProgress";
 
 export class TripController {
   private state: TripState = { trip: null, status: "idle", error: null };
   private listeners = new Set<() => void>();
   private request: AbortController | null = null;
   private generation = 0;
+  private deviation = new RouteDeviationMonitor();
+  private completedOnRoute = 0;
+  private stopConfirmations = 0;
+  private lastStopFix = 0;
   constructor(
     private routes: RoutesService,
     private getOrigin: () => Coordinate | null,
+    private now = Date.now,
   ) {}
   getSnapshot = () => this.state;
   subscribe = (listener: () => void) => {
@@ -29,6 +39,8 @@ export class TripController {
     for (const listener of this.listeners) listener();
   }
   cancel = () => {
+    this.deviation.reset();
+    this.completedOnRoute = this.stopConfirmations = this.lastStopFix = 0;
     this.generation++;
     this.request?.abort();
     this.request = null;
@@ -45,6 +57,8 @@ export class TripController {
       (this.state.status === "loading" || this.state.status === "ready")
     )
       return;
+    this.deviation.reset();
+    this.completedOnRoute = this.stopConfirmations = this.lastStopFix = 0;
     this.request?.abort();
     await this.calculate({ destination, route: null, stops: [] });
   };
@@ -63,11 +77,11 @@ export class TripController {
       trip.stops.some((stop) => stop.place.id === place.id)
     )
       return;
-    if (trip.stops.length >= 5) {
+    if (trip.stops.length >= LIMITS.MAX_STOPS) {
       this.update({
         ...this.state,
         error:
-          "V0.2 supports up to five stops. Remove one before adding another.",
+          "ROAM supports up to five stops. Remove one before adding another.",
       });
       return;
     }
@@ -79,10 +93,16 @@ export class TripController {
       });
       return;
     }
+    const stops = [...trip.stops];
+    stops.splice(
+      place.verifiedDetour ? detourInsertionIndex(trip, place) : stops.length,
+      0,
+      { id: place.id, place },
+    );
     await this.calculate({
       ...trip,
       route: null,
-      stops: [...trip.stops, { id: place.id, place }],
+      stops,
     });
   };
   removeStop = async (id: string) => {
@@ -100,8 +120,145 @@ export class TripController {
     });
   };
   retry = async () => {
-    if (this.state.trip && this.state.status !== "loading")
-      await this.calculate({ ...this.state.trip, route: null });
+    if (this.state.trip && this.state.status !== "loading") {
+      if (this.state.trip.route) await this.refreshAtomic(this.state.trip);
+      else await this.calculate({ ...this.state.trip, route: null });
+    }
+  };
+  observeLocation = (fix: TrackingFix, now = this.now()) => {
+    let trip = this.state.trip;
+    if (!trip?.startedAt || !trip.route || this.state.status !== "ready")
+      return;
+    const progress = tripProgress(
+      trip,
+      fix.coordinate,
+      fix.fresh && now - fix.timestamp <= 15_000,
+      now,
+      fix.accuracy,
+    );
+    if (progress?.estimated)
+      this.completedOnRoute = Math.max(
+        this.completedOnRoute,
+        progress.completedMeters - (trip.completedBeforeRouteMeters ?? 0),
+      );
+    const nextStop = trip.stops.find((s) => !s.visited);
+    if (nextStop && fix.timestamp > this.lastStopFix) {
+      this.lastStopFix = fix.timestamp;
+      const nearStop =
+        fix.fresh &&
+        now - fix.timestamp <= 15_000 &&
+        fix.timestamp <= now + 1000 &&
+        fix.accuracy !== null &&
+        fix.accuracy >= 0 &&
+        fix.accuracy <= 25 &&
+        distanceBetween(fix.coordinate, nextStop.place.coordinate) <= 40;
+      this.stopConfirmations = nearStop ? this.stopConfirmations + 1 : 0;
+      if (this.stopConfirmations >= 3) {
+        trip = {
+          ...trip,
+          stops: trip.stops.map((s) =>
+            s === nextStop ? { ...s, visited: true } : s,
+          ),
+        };
+        this.stopConfirmations = 0;
+        this.update({ ...this.state, trip });
+      }
+    }
+    const result = this.deviation.observe(trip.route!, fix, now);
+    if (this.state.tracking?.state !== result.state)
+      this.update({ ...this.state, tracking: { state: result.state } });
+    if (result.reroute) void this.refreshAtomic(trip);
+  };
+  refreshAtomic = async (
+    expected: ActiveTrip,
+    signal?: AbortSignal,
+  ): Promise<boolean> => {
+    const previous = this.state;
+    if (
+      signal?.aborted ||
+      previous.trip !== expected ||
+      previous.status !== "ready" ||
+      !expected.route
+    )
+      return false;
+    const origin = this.getOrigin();
+    if (!origin || !validCoordinate(origin)) return false;
+    this.deviation.markAttempt(this.now());
+    const generation = ++this.generation;
+    this.request?.abort();
+    const request = new AbortController();
+    this.request = request;
+    const abort = () => request.abort();
+    signal?.addEventListener("abort", abort, { once: true });
+    this.update({
+      ...previous,
+      status: "loading",
+      error: null,
+      tracking: { state: "rerouting" },
+    });
+    let succeeded = false;
+    try {
+      const route = await this.routes.getRoute(
+        origin,
+        expected.destination,
+        expected.stops.filter((s) => !s.visited),
+        { signal: request.signal },
+      );
+      if (generation !== this.generation || request.signal.aborted)
+        return false;
+      succeeded = true;
+      this.update({
+        trip: {
+          ...expected,
+          route,
+          completedBeforeRouteMeters:
+            (expected.completedBeforeRouteMeters ?? 0) + this.completedOnRoute,
+        },
+        status: "ready",
+        error: null,
+        tracking: { state: "onRoute" },
+      });
+      this.completedOnRoute = 0;
+      return true;
+    } catch {
+      return false;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      if (generation === this.generation) {
+        if (!succeeded)
+          this.update({
+            ...previous,
+            tracking: {
+              state:
+                previous.tracking?.state === "possiblyOffRoute"
+                  ? "possiblyOffRoute"
+                  : "onRoute",
+              error:
+                "Route refresh failed. Your existing route is kept; retry when GPS and network are ready.",
+            },
+          });
+        this.request = null;
+      }
+    }
+  };
+  markStopVisited = (id: string) => {
+    const trip = this.state.trip;
+    if (
+      !trip?.startedAt ||
+      this.state.status !== "ready" ||
+      !trip.stops.some((s) => s.id === id && !s.visited)
+    )
+      return;
+    this.stopConfirmations = 0;
+    this.update({
+      ...this.state,
+      trip: {
+        ...trip,
+        stops: trip.stops.map((s) =>
+          s.id === id ? { ...s, visited: true } : s,
+        ),
+      },
+    });
   };
   start = () => {
     if (
@@ -112,7 +269,10 @@ export class TripController {
       return;
     this.update({
       ...this.state,
-      trip: { ...this.state.trip, startedAt: new Date().toISOString() },
+      trip: {
+        ...this.state.trip,
+        startedAt: new Date(this.now()).toISOString(),
+      },
     });
   };
   // Assistant mutations are transactional: never replace a valid plan on API failure.
@@ -127,7 +287,7 @@ export class TripController {
       previous.trip !== expected ||
       previous.status !== "ready" ||
       !expected.route ||
-      stops.length > 5 ||
+      stops.length > LIMITS.MAX_STOPS ||
       stops.some(
         (stop) =>
           stop.place.source !== "verified" ||
@@ -150,16 +310,23 @@ export class TripController {
       const route = await this.routes.getRoute(
         origin,
         expected.destination,
-        stops,
+        stops.filter((s) => !s.visited),
         { signal: request.signal },
       );
       if (generation !== this.generation || request.signal.aborted)
         return false;
       this.update({
-        trip: { ...expected, stops, route },
+        trip: {
+          ...expected,
+          stops,
+          route,
+          completedBeforeRouteMeters:
+            (expected.completedBeforeRouteMeters ?? 0) + this.completedOnRoute,
+        },
         status: "ready",
         error: null,
       });
+      this.completedOnRoute = 0;
       return true;
     } catch {
       return false;
@@ -201,11 +368,21 @@ export class TripController {
       const route = await this.routes.getRoute(
         origin,
         trip.destination,
-        trip.stops,
+        trip.stops.filter((s) => !s.visited),
         { signal: request.signal },
       );
       if (generation !== this.generation || request.signal.aborted) return;
-      this.update({ trip: { ...trip, route }, status: "ready", error: null });
+      this.update({
+        trip: {
+          ...trip,
+          route,
+          completedBeforeRouteMeters:
+            (trip.completedBeforeRouteMeters ?? 0) + this.completedOnRoute,
+        },
+        status: "ready",
+        error: null,
+      });
+      this.completedOnRoute = 0;
     } catch (error) {
       if (
         generation !== this.generation ||

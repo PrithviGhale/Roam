@@ -166,7 +166,7 @@ export function PlacesSheet({
         {google && category && (
           <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 18 }}>
             {alongRoute
-              ? "Ranked for convenience ahead. Distances are map estimates, not driving detours."
+              ? "Top candidates are checked against Google driving routes. Detour labels appear only after a successful comparison; other distances are geometric."
               : "Distances are straight-line estimates. Driving distance is calculated when you choose a route."}
             {category === "restroom"
               ? " Restroom coverage and access are not guaranteed; only Google-listed public bathrooms are included."

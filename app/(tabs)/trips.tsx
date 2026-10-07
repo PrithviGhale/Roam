@@ -11,7 +11,7 @@ export default function TripsScreen() {
   const {
     theme: { colors },
   } = useTheme();
-  const { tripState, removeTripStop, cancelTrip } = useRoam();
+  const { tripState, removeTripStop, cancelTrip, markStopVisited } = useRoam();
   const trip = tripState.trip;
   return (
     <Page
@@ -71,6 +71,20 @@ export default function TripsScreen() {
                   >
                     {stop.place.name}
                   </Text>
+                  {stop.visited && (
+                    <Text style={{ color: colors.accent, fontSize: 11 }}>
+                      Visited · skipped on refresh
+                    </Text>
+                  )}
+                  {trip.startedAt && !stop.visited && (
+                    <Button
+                      secondary
+                      disabled={tripState.status === "loading"}
+                      onPress={() => markStopVisited(stop.id)}
+                    >
+                      Mark visited
+                    </Button>
+                  )}
                   <Text style={{ color: colors.muted, fontSize: 11 }}>
                     {stop.place.address ?? stop.place.subtitle}
                   </Text>
@@ -100,8 +114,9 @@ export default function TripsScreen() {
           </Button>
           <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 18 }}>
             Stops are visited in the order added. Route recalculation uses your
-            current GPS position. Remove a completed stop before refreshing to
-            avoid routing back to it.
+            current GPS position. Three accurate fixes within 40 m mark the next
+            stop visited. If GPS missed a stop, mark it visited here before
+            refreshing. Visited stops are skipped.
           </Text>
         </>
       ) : (

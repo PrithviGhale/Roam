@@ -3,20 +3,17 @@ import { continuationSchema, turnSchema } from "../../shared/assistant";
 import { ServiceError } from "../../services/errors";
 import { createGenerate, runRound, type Generate } from "./gemini";
 import { googleRequest, proxyGoogle } from "./google";
+import { authorize, type UserTokenVerifier } from "./auth";
+import { enforceRateLimits } from "./rateLimits";
+import { diagnosticProbe, probeGemini } from "./diagnostics";
+import { enforceBudget } from "./costControls";
+import { RequestError } from "./http";
 
 export type ServerEnv = Cloudflare.Env & {
   GEMINI_API_KEY?: string;
   GOOGLE_MAPS_API_KEY?: string;
   ROAM_ACCESS_TOKEN?: string;
 };
-class RequestError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
 async function readBody(request: Request): Promise<unknown> {
   const max = 128 * 1024;
   if (Number(request.headers.get("content-length")) > max)
@@ -60,39 +57,13 @@ async function readBody(request: Request): Promise<unknown> {
     reader.releaseLock();
   }
 }
-async function tokenMatches(
-  actual: string,
-  expected: string,
-): Promise<boolean> {
-  if (actual.length > 300) return false;
-  const encoder = new TextEncoder();
-  const hashes = await Promise.all(
-    [actual, expected].map((value) =>
-      crypto.subtle.digest("SHA-256", encoder.encode(value)),
-    ),
-  );
-  const left = new Uint8Array(hashes[0]!),
-    right = new Uint8Array(hashes[1]!);
-  let difference = 0;
-  for (let i = 0; i < left.length; i++) difference |= left[i]! ^ right[i]!;
-  return difference === 0;
-}
-function localHost(host: string): boolean {
-  if (host === "localhost" || host === "127.0.0.1" || host === "[::1]")
-    return true;
-  const parts = host.split(".").map(Number);
-  return (
-    parts.length === 4 &&
-    parts.every(
-      (value) => Number.isInteger(value) && value >= 0 && value <= 255,
-    ) &&
-    (parts[0] === 10 ||
-      (parts[0] === 192 && parts[1] === 168) ||
-      (parts[0] === 172 && parts[1]! >= 16 && parts[1]! <= 31))
-  );
-}
 export function createHandler(
-  dependencies: { generate?: Generate; google?: typeof proxyGoogle } = {},
+  dependencies: {
+    generate?: Generate;
+    google?: typeof proxyGoogle;
+    verifyUser?: UserTokenVerifier;
+    probeGemini?: typeof probeGemini;
+  } = {},
 ) {
   return async (request: Request, env: ServerEnv): Promise<Response> => {
     const url = new URL(request.url),
@@ -121,48 +92,68 @@ export function createHandler(
           },
         });
       if (url.pathname === "/health" && request.method === "GET")
-        return json({ ok: true, version: "0.3.0" });
+        return json({ ok: true, version: "0.4.0" });
       if (request.method !== "POST")
         throw new RequestError(405, "Use POST for this endpoint.");
-      if (env.ROAM_ACCESS_TOKEN) {
-        if (
-          !(await tokenMatches(
-            request.headers.get("authorization")?.replace(/^Bearer /, "") ?? "",
-            env.ROAM_ACCESS_TOKEN,
-          ))
-        )
-          throw new RequestError(401, "ROAM access was rejected.");
-      } else if (!localHost(url.hostname))
-        throw new RequestError(
-          503,
-          "Configure backend access protection before publishing.",
-        );
-      if (!(await env.REQUEST_LIMITER.limit({ key: "prototype" })).success)
-        throw new RequestError(429, "ROAM is busy. Try again shortly.");
+      const identity = await authorize(request, env, dependencies.verifyUser);
+      const diagnostic =
+        url.pathname === "/diagnostics" ||
+        url.pathname === "/diagnostics/probe";
       const ai = url.pathname === "/ai/turn" || url.pathname === "/ai/continue";
       const operation = url.pathname.startsWith("/google/")
         ? url.pathname.slice(8)
         : null;
-      if (!ai && !operation) throw new RequestError(404, "Endpoint not found.");
+      if (!ai && !operation && !diagnostic)
+        throw new RequestError(404, "Endpoint not found.");
+      await enforceRateLimits(
+        env,
+        identity,
+        diagnostic
+          ? "diagnostics"
+          : ai
+            ? "ai"
+            : operation === "routes"
+              ? "routes"
+              : "places",
+      );
       const body = await readBody(request);
       const signal = AbortSignal.any([
         request.signal,
         AbortSignal.timeout(30000),
       ]);
+      if (diagnostic) {
+        if (url.pathname === "/diagnostics") {
+          z.object({}).strict().parse(body);
+          return json({
+            authenticated: true,
+            mode: identity.kind,
+            services: {
+              gemini: env.GEMINI_API_KEY ? "configured" : "notConfigured",
+              places: env.GOOGLE_MAPS_API_KEY ? "configured" : "notConfigured",
+              routes: env.GOOGLE_MAPS_API_KEY ? "configured" : "notConfigured",
+            },
+          });
+        }
+        return json(
+          await diagnosticProbe(
+            body,
+            new Request(request.url, { signal }),
+            env,
+            dependencies.google,
+            dependencies.probeGemini,
+          ),
+        );
+      }
       if (ai) {
         const input =
           url.pathname === "/ai/turn"
             ? turnSchema.parse(body)
             : continuationSchema.parse(body);
+        if (url.pathname === "/ai/turn") enforceBudget(input, "turn", env);
         if (!env.GEMINI_API_KEY)
           throw new RequestError(
             503,
             "Gemini is not configured on this backend.",
-          );
-        if (!(await env.AI_LIMITER.limit({ key: "prototype-ai" })).success)
-          throw new RequestError(
-            429,
-            "ROAM AI reached its request limit. Try again shortly.",
           );
         return json(
           await runRound(
@@ -174,7 +165,8 @@ export function createHandler(
           ),
         );
       }
-      googleRequest(operation!, body); // Reject arbitrary URLs, masks, operations, and excessive Google budgets.
+      const validated = googleRequest(operation!, body); // Fixed URLs/masks and bounded provider budgets.
+      enforceBudget(validated.body ?? {}, "google", env);
       if (!env.GOOGLE_MAPS_API_KEY)
         throw new RequestError(
           503,

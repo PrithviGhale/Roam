@@ -2,7 +2,11 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { QUICK_ACTIONS } from "../constants/places";
 import { useTheme } from "../themes/ThemeProvider";
 import type { Place, PlaceSuggestion } from "../types/domain";
-import { formatDistance } from "../utils/format";
+import {
+  formatArrivalTime,
+  formatDetour,
+  formatDistance,
+} from "../utils/format";
 import { Icon } from "./ui";
 
 export function PlaceList({
@@ -93,13 +97,31 @@ export function PlaceList({
                     {formatDistance(place.distanceMeters)} away · straight-line
                   </Text>
                 )}
-                {place.routeOffsetMeters !== undefined && (
-                  <Text style={{ color: colors.muted, fontSize: 10 }}>
-                    {formatDistance(place.aheadMeters)} ahead ·{" "}
-                    {formatDistance(place.routeOffsetMeters)} off route
-                    (approx.)
+                {place.verifiedDetour && (
+                  <Text
+                    style={{
+                      color: colors.accent,
+                      fontSize: 12,
+                      fontWeight: "600",
+                    }}
+                  >
+                    {formatDetour(place.verifiedDetour.durationSeconds)} ·{" "}
+                    {place.verifiedDetour.distanceMeters < 0 ? "−" : "+"}
+                    {formatDistance(
+                      Math.abs(place.verifiedDetour.distanceMeters),
+                    )}{" "}
+                    · Route snapshot{" "}
+                    {formatArrivalTime(place.verifiedDetour.calculatedAt)}
                   </Text>
                 )}
+                {!place.verifiedDetour &&
+                  place.routeOffsetMeters !== undefined && (
+                    <Text style={{ color: colors.muted, fontSize: 10 }}>
+                      {formatDistance(place.aheadMeters)} ahead ·{" "}
+                      {formatDistance(place.routeOffsetMeters)} off route
+                      (approx.)
+                    </Text>
+                  )}
               </>
             )}
           </View>

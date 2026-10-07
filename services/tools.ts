@@ -10,6 +10,10 @@ import type {
 import { ServiceError } from "./errors";
 import { sampleAhead, rankRoutePlaces } from "./routeAware";
 import { distanceBetween } from "../utils/geo";
+import { rankRecommendations } from "./routeAware";
+import type { DetourService } from "./detours";
+import { timeAheadPoint } from "../utils/routeTiming";
+import { LIMITS } from "../shared/limits";
 export interface TripPort {
   getSnapshot(): TripState;
   applyStopsAtomic(
@@ -18,18 +22,22 @@ export interface TripPort {
     signal?: AbortSignal,
   ): Promise<boolean>;
   cancel(): void;
+  refreshAtomic?(expected: ActiveTrip, signal?: AbortSignal): Promise<boolean>;
 }
 export interface SearchArguments {
   query?: string;
   maxResults?: number;
   minRating?: number;
   nearDestination?: boolean;
+  timeAheadMinutes?: number;
+  maxDetourMinutes?: number;
 }
 // AI and UI share V0.2 providers. Qualified queries reuse Text Search, not a second adapter.
 export function createTripTools(
   places: PlacesService,
   trip: TripPort,
   getLocation: () => Coordinate | null,
+  detours?: DetourService,
 ) {
   const search = async (
     category: PlaceCategory | null,
@@ -54,6 +62,18 @@ export function createTripTools(
         "A fresh GPS location is needed to search for stops.",
       );
     const route = !destinationBias ? current?.route : null;
+    const timedAnchor =
+      args.timeAheadMinutes !== undefined && route
+        ? timeAheadPoint(route, origin, args.timeAheadMinutes)
+        : null;
+    if (
+      args.timeAheadMinutes !== undefined &&
+      (!timedAnchor || destinationBias)
+    )
+      throw new ServiceError(
+        "invalid-data",
+        "A current on-route GPS fix and active route are needed for a time-ahead search. The timing is approximate.",
+      );
     let results: Place[];
     if (args.query?.trim()) {
       const suffix =
@@ -69,7 +89,11 @@ export function createTripTools(
                   ? "parking"
                   : "";
       const query = `${args.query.trim()} ${suffix}`.trim().slice(0, 200);
-      const samples = route ? sampleAhead(route, origin) : [origin];
+      const samples = timedAnchor
+        ? [timedAnchor]
+        : route
+          ? sampleAhead(route, origin)
+          : [origin];
       const replies = await Promise.allSettled(
         samples.map((point) => places.search(query, point, options)),
       );
@@ -99,23 +123,50 @@ export function createTripTools(
             }))
             .sort((a, b) => a.distanceMeters - b.distanceMeters);
     } else if (category)
-      results = route
-        ? await places.alongRoute(category, origin, route, options)
-        : await places.nearby(category, origin, options);
+      results = timedAnchor
+        ? rankRoutePlaces(
+            await places.nearby(category, timedAnchor, options),
+            route!,
+            origin,
+          )
+        : route
+          ? await places.alongRoute(category, origin, route, options)
+          : await places.nearby(category, origin, options);
     else
       throw new ServiceError(
         "invalid-data",
         "Tell me what place to search for.",
       );
-    return results
+    results = results
       .filter(
         (place) =>
           place.source === "verified" &&
+          (!timedAnchor ||
+            distanceBetween(timedAnchor, place.coordinate) <= 3000) &&
           (args.minRating === undefined ||
             (place.rating !== undefined && place.rating >= args.minRating)),
       )
-      .slice(0, args.maxResults ?? 3)
       .map((place) => (category ? { ...place, category } : place));
+    if (current?.route && detours) {
+      const driver = getLocation();
+      if (driver) {
+        // Destination search bias is not the comparison origin: always compare from the driver.
+        results = await detours.verify(results, current, driver, options);
+        if (trip.getSnapshot().trip !== current)
+          throw new ServiceError("cancelled", "Trip changed. Search again.");
+        results = rankRecommendations(results, args.query);
+      }
+    }
+    if (args.maxDetourMinutes !== undefined)
+      results = results.filter(
+        (place) =>
+          place.verifiedDetour &&
+          place.verifiedDetour.durationSeconds <= args.maxDetourMinutes! * 60,
+      );
+    return results.slice(
+      0,
+      Math.min(LIMITS.MAX_PLACE_RESULTS, args.maxResults ?? 3),
+    );
   };
   return {
     searchFood: (args?: SearchArguments, options?: RequestOptions) =>

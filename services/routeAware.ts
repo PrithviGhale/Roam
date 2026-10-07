@@ -49,11 +49,11 @@ export function rankRoutePlaces(
       0,
       candidate.progressMeters - driver.progressMeters,
     );
-    const score =
-      candidate.offsetMeters * 4 +
-      aheadMeters * 0.15 -
-      (place.rating ?? 0) * 80 +
-      (place.openNow === false ? 2000 : 0);
+    const score = recommendationScore({
+      ...place,
+      aheadMeters,
+      routeOffsetMeters: candidate.offsetMeters,
+    });
     return [
       {
         place: {
@@ -67,4 +67,35 @@ export function rankRoutePlaces(
     ];
   });
   return ranked.sort((a, b) => a.score - b.score).map((item) => item.place);
+}
+// Lower is better. Detour duration dominates reviews; unknown facts are not fabricated.
+export function recommendationScore(place: Place, query = ""): number {
+  const detour = place.verifiedDetour;
+  const relevance = query
+    .trim()
+    .split(/\s+/)
+    .filter(
+      (word) =>
+        word.length > 2 &&
+        place.name.toLowerCase().includes(word.toLowerCase()),
+    ).length;
+  return (
+    (detour
+      ? Math.max(0, detour.durationSeconds) * 50 +
+        Math.max(0, detour.distanceMeters) * 0.1
+      : 0) +
+    (place.routeOffsetMeters ?? 0) * 4 +
+    (place.aheadMeters ?? place.distanceMeters ?? 0) * 0.15 -
+    (place.rating ?? 0) * 80 -
+    Math.log10(1 + (place.ratingCount ?? 0)) * 45 +
+    (place.openNow === false ? 2000 : 0) -
+    relevance * 100
+  );
+}
+export function rankRecommendations(places: Place[], query = ""): Place[] {
+  return [...places].sort(
+    (a, b) =>
+      Number(!a.verifiedDetour) - Number(!b.verifiedDetour) ||
+      recommendationScore(a, query) - recommendationScore(b, query),
+  );
 }

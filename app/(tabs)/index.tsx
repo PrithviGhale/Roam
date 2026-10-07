@@ -42,6 +42,7 @@ export default function MapScreen() {
     status,
     retry,
   } = useRoam();
+  const driving = Boolean(tripState.trip?.startedAt);
   const { stopVoice } = useAssistant();
   const [googleSupported] = useState(supportsGoogleMap);
   const [recenter, setRecenter] = useState(0);
@@ -93,7 +94,7 @@ export default function MapScreen() {
             <Text
               style={{ color: colors.muted, fontSize: 9, letterSpacing: 1 }}
             >
-              V0.3
+              V0.4
             </Text>
           </View>
           <View style={{ flex: 1 }} />
@@ -103,11 +104,13 @@ export default function MapScreen() {
             onPress={() => setTheme(theme.id === "dark" ? "light" : "dark")}
           />
         </View>
-        <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
-          <SearchBar onPress={() => openPlaces(null)} />
-        </View>
+        {!driving && (
+          <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
+            <SearchBar onPress={() => openPlaces(null)} />
+          </View>
+        )}
         <QuickActions onSelect={openPlaces} />
-        {!compact && (
+        {!compact && !driving && (
           <View style={{ paddingHorizontal: 20, paddingTop: 10 }}>
             <Panel style={{ padding: 10 }}>
               <Text style={{ color: colors.muted, fontSize: 10 }}>

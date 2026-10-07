@@ -11,6 +11,7 @@ import { decodePolyline } from "../../utils/polyline";
 import { ServiceError } from "../errors";
 import type { GoogleClient } from "./client";
 import { finite, googleCoordinate, record, string } from "./normalization";
+import { LIMITS } from "../../shared/limits";
 
 function duration(value: unknown): number | undefined {
   if (typeof value !== "string" || !/^\d+(?:\.\d+)?s$/.test(value))
@@ -98,10 +99,10 @@ export function createGoogleRoutesService(client: GoogleClient): RoutesService {
           "invalid-data",
           "Demo places cannot be used for real driving routes.",
         );
-      if (stops.length > 5)
+      if (stops.length > LIMITS.MAX_STOPS)
         throw new ServiceError(
           "invalid-data",
-          "V0.2 supports up to five stops per trip.",
+          "ROAM supports up to five stops per trip.",
         );
       const waypoint = (coordinate: Coordinate) => ({
         location: { latLng: coordinate },

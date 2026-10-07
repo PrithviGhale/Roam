@@ -1,29 +1,45 @@
-# Physical iPhone verification · V0.3 map regression
+# Physical iPhone verification · V0.4
 
-Status: not yet executed on a physical iPhone. Run these checks while stationary. Record model, iOS version, Expo Go / development-build version, key restriction mode (without the key), and failures.
+**Not yet executed on a physical iPhone.** Record device/iOS, app build, backend version/model and sanitized failures. Test while parked; movement tests need a passenger operating the phone or a controlled route. Never paste keys/GPS traces into logs/issues.
 
-## Configuration and launch
+## Build, permissions and GPS
 
-1. Run `npm ci` / `npm start` and open a compatible SDK 54 Expo Go QR. With no `.env`, confirm the explicit demo state, fictional results, Apple map/GPS, and no fabricated route or ETA.
-2. Enable the APIs / billing and add environment variables from README. Restart with `npx expo start --clear`. If the Google map manager is absent, confirm the readable setup message and use the documented native development build. Native SDK key changes require rebuilding.
-3. Grant foreground location, confirm actual position, recenter, pinch, rotate, and pan. Deny permission in a fresh session and verify Retry / Settings recovery. Disable location services and restore them. Background and resume; verify stale speed is suppressed and foreground GPS reconnects.
-4. At rest, confirm valid speed settles to 0 MPH; invalid/unavailable speed stays a dash. No invented road names or maneuvers should appear.
+- Install a compatible SDK 54 Expo Go or signed ROAM development build. Verify no-config fictional demo and configured failures without fabricated routes/results.
+- Development build: restricted iOS Maps SDK key, bundle `com.prithvighale.roam`, speech module/permissions and foreground location. Native keys/modules require rebuild.
+- Profile → Diagnostics: read permissions; verify live latitude/longitude, timestamp, accuracy, speed, heading and freshness. Compare speed/heading while stationary and moving. Deny permissions, disable location, retry/Settings, background/resume. Confirm no background watcher/audio.
+- Expo Go microphone fallback must explain development-build requirement once tapped; text/TTS remain usable. Production build must hide diagnostics and redirect direct navigation to the route.
 
-## Places and routes
+## Network / secrets
 
-5. Search `Starbucks`, `Boston`, `123 Main Street`, `Walmart`, `Manchester Airport`, and `Chipotle`. Verify meaningful real suggestions and selected coordinates. Check empty/one-character input, no matches, fast typing, closing mid-request, and re-opening; old results must not reappear.
-6. Select a destination. Confirm real Google geometry, destination marker, GPS marker, camera fit, duration, miles, and arrival estimate. Compare with a Google route at the same time; differences in options/traffic can occur. Check both endpoints remain visible above overlays and Google attribution stays visible.
-7. Pan manually after route load. GPS updates must not snap the camera back. Recenter should return to current position. Cancel while a route is loading and confirm a late response cannot redraw it. Select two destinations rapidly; only the latest should win.
-8. Test all five quick actions without a route. Verify multiple Google results, known rating/open status only, address, labeled straight-line distance, and third-party attribution if supplied. Restroom search includes only Google-listed public bathrooms; absence/access is possible.
-9. With an active route, open quick actions. Verify ahead/corridor ranking, geometric distance labels, and no fabricated detour minutes. Test near route end and well off route; off-route search should be labeled nearby. Try closing/re-opening and retrying the sheet.
-10. Select a result, inspect its details, then Add as stop. Confirm destination is retained, stop is numbered, duration/distance/geometry update together, and duplicate taps/duplicate places do not trigger duplicate stops. Add multiple stops up to five and check insertion order.
-11. Remove a stop in Trips. Confirm recalculation and that old route information disappears during loading. Simulate failure: stop list should remain the requested plan, route should be absent, and Retry should recover. Remove completed stops before refreshing.
-12. Start Trip: check MPH and explicitly estimated remaining time/distance. Move only with a passenger operating the phone. Off-route message should offer manual refresh; there is no turn guidance or automatic rerouting. End / Cancel should clear destination, stops, line, and summary while keeping theme preference.
+- Start/connect Worker using LAN IPv4 or HTTPS. Health means reachability only. Auth diagnostic reports configured/untested without provider calls. Invalid/absent token and malformed headers must reject published requests.
+- Explicit Places/Routes probes each make one paid fixed-sample call without phone GPS. Gemini metadata probe is not inference proof: run a normal text turn afterwards. Check missing-key/network/429 states; wait a minute after limits.
+- Published probes require an explicit development flag; turn it off afterwards. Check browser allowlist and native no-Origin behavior. Validate server API restrictions and native bundle restrictions separately; no general REST/Gemini key in mobile environment/bundle.
 
-## Errors and regression
+## Map, places, stops and detours
 
-13. Test invalid/restricted key, billing-disabled or quota-limited project, unreachable destination, airplane mode, and request timeout. Confirm readable errors and retry, with no fictional replacement results. Restore configuration/network and retry. Do not log or share credentials.
-14. In Google Cloud verify restrictions reject an incorrect bundle identifier where supported. Verify each REST API independently; use the backend approach if mobile restriction support is insufficient. Check native map key restrictions independently from REST keys.
-15. Switch Dark / Light on every tab, open/dismiss keyboard and sheets, check assistant shared conversation and read-aloud / stop speech. Missing backend configuration should remain labeled demo; configured Gemini and development-build speech follow [the assistant checklist](assistant-checklist.md). Test a small iPhone, notch/Dynamic Island, large text, long destination names, and scrolling/attribution visibility. Theme should survive restart; trips should not.
+- Search city/address/business; verify debounce, details, actual Google geometry, camera fit, destination/stop markers, attribution and pan/recenter. Cancel/select-new-destination mid-request must suppress old results.
+- Food/Gas/Restroom/Coffee/Parking before and during a trip. Parking and explicit near-destination coffee use destination anchor. Known ratings/review counts/hours only; restroom access and parking inventory not guaranteed.
+- Route recommendations: top checked candidates show signed Google detour minutes/miles; unchecked/failed results show no driving-detour number. Compare original versus candidate routes at similar times. Confirm existing ordered stops are retained and candidate insertion matches preview policy.
+- Repeat within sixty seconds/150 m to observe cache use; move further/change route/visited state to force fresh comparisons. Check a full five-stop plan doesn't issue candidate routes. Monitor provider dashboards for at most one baseline + three candidate requests per cold search.
+- “Find gas within a five-minute detour”: every returned result must have a verified comparison ≤ 300 seconds. Fail candidate/baseline requests: unchecked places must not pass that limit. Empty results mean checked finalists didn't qualify.
+- “Find coffee about 30 minutes from now”: check estimated search region lies ahead on route, one Places request, qualifier matches within region, and no guaranteed scheduled stop arrival. Requests beyond trip end should anchor near destination.
+- Add first/second/third cards; recommendation alone must not add. Accept pending recommendation; unknown/expired/ambiguous/negated targets must not mutate. Add/remove stop recalculates ETA/arrival/geometry. Assistant transaction failures keep previous plan.
+- Three accurate fixes within 40 m of the next stop mark it visited without paid refresh. If missed, Mark visited in Trips. Refresh must skip visited stops; remove remains usable and duplicate/full-plan guards remain.
 
-Record actual results; passing a bundle export is not evidence that any physical-device step above passed.
+## Driving, progress and rerouting
+
+- Start Trip: prominent speed/destination/time/distance/arrival/mic, reduced setup controls, readable quick actions and large targets. Dark/Light, small iPhone, notch/Dynamic Island, large text and long names must remain usable.
+- Move along route: completed/remaining distance, percent and estimated remaining duration change with projected progress. Arrival is a local clock time, distinct from duration. Stops/refresh update it. Stale/inaccurate/off-route GPS must suppress current arrival/progress.
+- Check slow/fast legs, parallel roads, loops/intersections, GPS jumps and route end. Progress aggregate survives reroute; percentage is relative to revised journey. No turn guidance or Navigation SDK claim.
+- One noisy off-route reading must not reroute. Three accurate distinct updates over six seconds beyond max(70 m, accuracy × 3) can request one route. Verify sixty-second cooldown on both success and failure; ordinary on-route movement/planning doesn't call Routes.
+- During reroute old line remains and “Finding a better route…” appears. Network failure retains exact route/stops with recoverable message. Cancel/change destination while rerouting must defeat late completion.
+
+## Assistant and voice
+
+- “I'm hungry,” burger/brand query, gas/restroom, max detour, time-ahead, destination parking/coffee: verify actual cards, receipt-backed detours and no fictional prices/conditions.
+- “What's my ETA?”, “What time will I get there?”, “When do we arrive?”, “How much longer?”: compare current duration/arrival/progress and estimate labels. Explicit “refresh my route” recalculates once; no accidental reroutes from search/questions.
+- Started-trip responses should be short with one top suggestion; no automatic long spoken lists. Add/remove/cancel still require authorization. Normal map buttons work if Gemini is unavailable.
+- Diagnostics recognition: read/grant/deny microphone and speech permissions, start/stop, transcript/confidence if provided, twenty-second cap, no submission to Gemini. Test TTS voices/audible playback/stop and iPhone silent/audio-route behavior.
+- Assistant recognition: transcript sends once; concise spoken response, interrupt with mic/Stop; background/dismiss stops everything. Test Siri/call/audio interruption, network recognition failure and permission dialogs dismissed while leaving the screen. No recordings persisted or wake word.
+
+Record actual results and known failures. Passing automated mocks/exports is not physical-device validation or proof of provider billing/model access.

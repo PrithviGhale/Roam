@@ -13,6 +13,9 @@ import {
 } from "../src/gemini";
 import { buildContext } from "../../services/assistant/context";
 import { type AssistantTurn } from "../../shared/assistant";
+import { authorize } from "../src/auth";
+import { lowerLimit } from "../src/costControls";
+import { enforceRateLimits } from "../src/rateLimits";
 
 const input: AssistantTurn = {
   message: "I'm hungry",
@@ -23,6 +26,26 @@ function environment(overrides: Partial<ServerEnv> = {}): ServerEnv {
   return {
     GEMINI_MODEL: "gemini-3.8-flash",
     ALLOWED_ORIGINS: "http://localhost:8081,http://localhost:19006",
+    AUTH_MODE: "prototype",
+    ENABLE_DEV_DIAGNOSTICS: "false",
+    MAX_PLACE_RESULTS: "5",
+    MAX_STOPS: "5",
+    MAX_AI_HISTORY_MESSAGES: "12",
+    PLACES_LIMITER: {
+      async limit() {
+        return { success: true };
+      },
+    },
+    ROUTES_LIMITER: {
+      async limit() {
+        return { success: true };
+      },
+    },
+    DIAGNOSTIC_LIMITER: {
+      async limit() {
+        return { success: true };
+      },
+    },
     REQUEST_LIMITER: {
       async limit() {
         return { success: true };
@@ -38,6 +61,248 @@ function environment(overrides: Partial<ServerEnv> = {}): ServerEnv {
     ...overrides,
   };
 }
+
+test("central auth rejects malformed headers and supports a separate future user verifier", async () => {
+  for (const header of [
+    "test-token",
+    "Basic test-token",
+    "Bearer",
+    "Bearer test token",
+    "Bearer a, Bearer b",
+  ])
+    await assert.rejects(
+      authorize(post("/diagnostics", {}, { Authorization: header }), {
+        ROAM_ACCESS_TOKEN: "test-token",
+      }),
+    );
+  const prototype = await authorize(
+    post("/diagnostics", {}, { Authorization: "Bearer test-token" }),
+    { ROAM_ACCESS_TOKEN: "test-token" },
+  );
+  assert.equal(prototype.kind, "prototype");
+  await assert.rejects(
+    authorize(
+      post("/diagnostics", {}, { Authorization: "Bearer test-token" }),
+      { AUTH_MODE: "user" },
+    ),
+  );
+  const user = await authorize(
+    post("/diagnostics", {}, { Authorization: "Bearer test-token" }),
+    { AUTH_MODE: "user" },
+    async () => ({ subject: "fixture-user" }),
+  );
+  assert.equal(user.kind, "user");
+  assert.match(user.rateKey, /^user:/);
+  assert.doesNotMatch(user.rateKey, /fixture-user|test-token/);
+});
+test("Places and Routes independent limits reject before upstream execution", async () => {
+  let calls = 0;
+  const handler = createHandler({
+    google: async () => {
+      calls++;
+      return {};
+    },
+  });
+  const env = environment({
+    PLACES_LIMITER: {
+      async limit() {
+        return { success: false };
+      },
+    },
+    ROUTES_LIMITER: {
+      async limit() {
+        return { success: false };
+      },
+    },
+  });
+  assert.equal(
+    (await handler(post("/google/details", { placeId: "place" }), env)).status,
+    429,
+  );
+  assert.equal((await handler(post("/google/routes", {}), env)).status, 429);
+  assert.equal(calls, 0);
+});
+test("future user rate identity also consumes a shared provider ceiling", async () => {
+  const keys: string[] = [];
+  const env = environment({
+    ROUTES_LIMITER: {
+      async limit({ key }) {
+        keys.push(key);
+        return { success: keys.length === 1 };
+      },
+    },
+  });
+  await assert.rejects(
+    enforceRateLimits(env, { kind: "user", rateKey: "user:hashed" }, "routes"),
+  );
+  assert.deepEqual(keys, ["user:hashed:routes", "all-users:routes"]);
+});
+test("configured budgets reject excessive result counts without provider calls", async () => {
+  let calls = 0;
+  const handler = createHandler({
+    google: async () => {
+      calls++;
+      return {};
+    },
+  });
+  assert.equal(
+    (
+      await handler(
+        post("/google/text-search", { textQuery: "coffee", pageSize: 10 }),
+        environment(),
+      )
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await handler(
+        post("/google/text-search", { textQuery: "coffee", pageSize: 5 }),
+        environment(),
+      )
+    ).status,
+    200,
+  );
+  assert.equal(calls, 1);
+  assert.equal(lowerLimit("3", 5), 3);
+  assert.equal(lowerLimit("999", 5), 5);
+  assert.equal(lowerLimit("bad", 5), 5);
+});
+test("proxy rejects invalid Earth coordinates, stops, histories and extra fields", async () => {
+  const handler = createHandler({ generate: simple, google: async () => ({}) });
+  const nearby = {
+    includedTypes: ["coffee_shop"],
+    maxResultCount: 5,
+    rankPreference: "DISTANCE",
+    locationRestriction: {
+      circle: { center: { latitude: 91, longitude: 0 }, radius: 2000 },
+    },
+  };
+  assert.equal(
+    (await handler(post("/google/nearby", nearby), environment())).status,
+    400,
+  );
+  assert.equal(
+    (
+      await handler(
+        post("/ai/turn", {
+          ...input,
+          history: Array.from({ length: 13 }, () => ({
+            role: "user",
+            text: "hi",
+          })),
+        }),
+        environment(),
+      )
+    ).status,
+    400,
+  );
+  assert.throws(() =>
+    googleRequest("routes", {
+      origin: { location: { latLng: { latitude: 0, longitude: 181 } } },
+      destination: { placeId: "destination" },
+      intermediates: Array.from({ length: 6 }, () => ({ placeId: "stop" })),
+    }),
+  );
+});
+test("auth diagnostics prove only configuration and never call providers or leak keys", async () => {
+  let calls = 0;
+  const handler = createHandler({
+    google: async () => {
+      calls++;
+      return {};
+    },
+    probeGemini: async () => {
+      calls++;
+    },
+  });
+  const response = await handler(post("/diagnostics", {}), environment());
+  assert.equal(response.status, 200);
+  const body = await response.text();
+  assert.match(body, /configured/);
+  assert.doesNotMatch(body, /fixture-only|connected/);
+  assert.equal(calls, 0);
+});
+test("provider probes use fixed samples, no phone GPS, and separate dev-only gating", async () => {
+  const calls: { operation: string; body: unknown }[] = [];
+  let model = 0;
+  const handler = createHandler({
+    google: async (operation, body) => {
+      googleRequest(operation, body);
+      calls.push({ operation, body });
+      return {};
+    },
+    probeGemini: async () => {
+      model++;
+    },
+  });
+  for (const service of ["places", "routes", "gemini"])
+    assert.equal(
+      (await handler(post("/diagnostics/probe", { service }), environment()))
+        .status,
+      200,
+    );
+  assert.equal(calls.length, 2);
+  assert.equal(model, 1);
+  assert.match(JSON.stringify(calls), /42.355/);
+  assert.equal(
+    (
+      await handler(
+        post("/diagnostics/probe", {
+          service: "places",
+          location: { latitude: 1, longitude: 1 },
+        }),
+        environment(),
+      )
+    ).status,
+    400,
+  );
+  const remote = new Request("https://roam-api.example/diagnostics/probe", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer test-token",
+    },
+    body: JSON.stringify({ service: "routes" }),
+  });
+  assert.equal(
+    (await handler(remote, environment({ ROAM_ACCESS_TOKEN: "test-token" })))
+      .status,
+    404,
+  );
+  assert.equal(calls.length, 2);
+});
+test("diagnostic rate limit and missing credentials never trigger billable probes", async () => {
+  let calls = 0;
+  const handler = createHandler({
+    google: async () => {
+      calls++;
+      return {};
+    },
+  });
+  assert.equal(
+    (
+      await handler(
+        post("/diagnostics/probe", { service: "places" }),
+        environment({
+          DIAGNOSTIC_LIMITER: {
+            async limit() {
+              return { success: false };
+            },
+          },
+        }),
+      )
+    ).status,
+    429,
+  );
+  const response = await handler(
+    post("/diagnostics/probe", { service: "places" }),
+    environment({ GOOGLE_MAPS_API_KEY: undefined }),
+  );
+  assert.equal(response.status, 200);
+  assert.match(await response.text(), /notConfigured/);
+  assert.equal(calls, 0);
+});
 function post(
   path: string,
   body: unknown,

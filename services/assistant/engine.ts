@@ -12,7 +12,12 @@ import type {
   Place,
   VoiceState,
 } from "../../types/domain";
-import { formatDistance, formatDuration } from "../../utils/format";
+import {
+  formatArrivalTime,
+  formatDetour,
+  formatDistance,
+  formatDuration,
+} from "../../utils/format";
 import { createTripTools, type TripPort } from "../tools";
 import { ServiceError, isCancelled } from "../errors";
 import type { PlacesService } from "../../types/domain";
@@ -26,6 +31,10 @@ import {
   type ResultReference,
 } from "./references";
 import type { AssistantTransport } from "./client";
+import type { DetourService } from "../detours";
+import { detourInsertionIndex, freshDetour } from "../detours";
+import { distanceBetween } from "../../utils/geo";
+import { LIMITS } from "../../shared/limits";
 
 export interface AssistantReply {
   text: string;
@@ -47,18 +56,36 @@ export class AssistantEngine {
   private pending: PendingAction | null = null;
   private lastStopId: string | null = null;
   private busy = false;
+  private searchedTrip: ActiveTrip | null = null;
+  private searchedOrigin: Coordinate | null = null;
   constructor(
     private transport: AssistantTransport,
     private places: PlacesService,
     private trip: TripPort,
     private getLocation: () => Coordinate | null,
     private now = Date.now,
+    private detours?: DetourService,
+    private getAccuracy?: () => number | null,
   ) {}
   recentResults() {
     if (this.results && this.results.expires > this.now())
-      return this.results.places;
+      return this.results.places.map((place) => this.currentResult(place));
     this.results = null;
     return [];
+  }
+  private currentResult(place: Place): Place {
+    const location = this.getLocation();
+    if (
+      this.searchedTrip === this.trip.getSnapshot().trip &&
+      location &&
+      this.searchedOrigin &&
+      distanceBetween(location, this.searchedOrigin) <=
+        LIMITS.DETOUR_CACHE_MOVEMENT_METERS &&
+      freshDetour(place, this.now())
+    )
+      return place;
+    const { verifiedDetour: _old, ...withoutDetour } = place;
+    return withoutDetour;
   }
   private currentPending(): PendingAction | null {
     if (
@@ -73,13 +100,15 @@ export class AssistantEngine {
   private reply(text: string, extras: Partial<Outcome> = {}): Outcome {
     return { kind: "clarification", text, spokenText: text, ...extras };
   }
-  private status(): Outcome {
+  private status(input = ""): Outcome {
     const context = buildContext(
       this.trip.getSnapshot().trip,
       this.getLocation(),
       Boolean(this.getLocation()),
       [],
       null,
+      this.now(),
+      this.getAccuracy?.(),
     );
     if (!context.destination)
       return this.reply(
@@ -89,14 +118,44 @@ export class AssistantEngine {
     const timing = context.routeAvailable
       ? `${formatDuration(context.etaSeconds)} and ${formatDistance(context.distanceMeters)}${context.estimatedRemaining ? " remaining, estimated from GPS progress" : " on the route, from the last Google calculation"}.`
       : "The route estimate is unavailable right now.";
+    const arrival = context.arrivalTime
+      ? ` Arrival around ${formatArrivalTime(context.arrivalTime)}.`
+      : context.tripStarted
+        ? " Arrival is unavailable until GPS is back on route."
+        : "";
+    if (context.tripStarted) {
+      if (/\b(stops|stop list)\b/i.test(input))
+        return this.reply(
+          context.stops.length
+            ? `Your stops: ${context.stops.map((s, i) => `${i + 1}. ${s.name}`).join(", ")}.`
+            : "You have no added stops.",
+          { kind: "status" },
+        );
+      if (/\b(where|destination|heading)\b/i.test(input))
+        return this.reply(`You’re heading to ${context.destination.name}.`, {
+          kind: "status",
+        });
+      if (/\b(progress|percent|completed|how far)\b/i.test(input))
+        return this.reply(
+          context.percentageCompleted !== null &&
+            context.percentageCompleted !== undefined
+            ? `${Math.round(context.percentageCompleted)}% of your revised journey. ${formatDistance(context.distanceMeters)} remaining, estimated from GPS progress.`
+            : "Progress is unavailable until accurate GPS is back on route.",
+          { kind: "status" },
+        );
+      return this.reply(
+        `${context.estimatedRemaining ? `${formatDuration(context.etaSeconds)} remaining.` : `${formatDuration(context.etaSeconds)} on the last route snapshot.`}${arrival}${context.estimatedRemaining ? " Estimated from GPS progress." : ""}`,
+        { kind: "status" },
+      );
+    }
     const stops = context.stops.length
       ? ` Stops: ${context.stops.map((stop) => stop.name).join(", ")}.`
       : " No added stops.";
     return this.reply(
-      `You’re heading to ${context.destination.name}. ${timing}${context.offRoute ? " You may be off route; refresh on the map." : ""}${stops}`,
+      `You’re heading to ${context.destination.name}. ${timing}${arrival}${context.offRoute ? " You may be off route; refresh on the map." : ""}${stops}`,
       {
         kind: "status",
-        spokenText: `You’re heading to ${context.destination.name}. ${timing}`,
+        spokenText: `You’re heading to ${context.destination.name}. ${timing}${arrival}`,
       },
     );
   }
@@ -117,7 +176,14 @@ export class AssistantEngine {
       if (signal?.aborted)
         throw new ServiceError("cancelled", "Request cancelled.");
       if (call.name.startsWith("search")) {
-        const tools = createTripTools(this.places, this.trip, this.getLocation);
+        const searchTrip = this.trip.getSnapshot().trip;
+        const searchOrigin = this.getLocation();
+        const tools = createTripTools(
+          this.places,
+          this.trip,
+          this.getLocation,
+          this.detours,
+        );
         const searchName = call.name as keyof Omit<
           typeof tools,
           "getCurrentRoute"
@@ -129,22 +195,27 @@ export class AssistantEngine {
         if (signal?.aborted)
           throw new ServiceError("cancelled", "Request cancelled.");
         this.pending = null;
+        this.searchedTrip = searchTrip;
+        this.searchedOrigin = searchOrigin;
         const outcome = this.reply(
           found.length
-            ? `I found ${found.length} verified option${found.length === 1 ? "" : "s"}. Distances shown are map estimates, not driving detours.`
-            : "I couldn’t find matching places. Try a different search.",
+            ? `I found ${found.length} verified option${found.length === 1 ? "" : "s"}. ${found.some((p) => p.verifiedDetour) ? "Detours shown compare Google driving routes." : "Driving detours are unavailable for these results."}${call.args.timeAheadMinutes ? " The time-ahead search region is approximate." : ""}`
+            : call.args.maxDetourMinutes !== undefined
+              ? "No checked candidates met your verified detour limit. Unchecked places are excluded; try a different search."
+              : "I couldn’t find matching places. Try a different search.",
           { kind: "search", places: found },
         );
         return make(outcome, {
           status: "success",
-          places: found.map(placeFact),
-          distances: "geometric-not-driving-detours",
+          places: found.map((place) => placeFact(place, this.now())),
+          distances:
+            "only-verifiedDetour-fields-are-driving-comparisons; other-distances-are-geometric",
           restroomAccess: "not-guaranteed",
           prices: "unavailable",
         });
       }
       if (call.name === "getTripStatus") {
-        const outcome = this.status();
+        const outcome = this.status(input);
         return make(outcome, {
           status: "success",
           trip: buildContext(
@@ -153,8 +224,45 @@ export class AssistantEngine {
             Boolean(this.getLocation()),
             [],
             null,
+            this.now(),
+            this.getAccuracy?.(),
           ),
         });
+      }
+      if (call.name === "rerouteTrip") {
+        const current = this.trip.getSnapshot().trip;
+        if (
+          !/\b(reroute|refresh|recalculate)\b/i.test(input) ||
+          /\b(don['’]?t|do not|never|should|maybe)\b/i.test(input) ||
+          !current ||
+          current !== initialTrip ||
+          !this.trip.refreshAtomic
+        )
+          return make(
+            this.reply("Ask me explicitly to refresh your current route."),
+            { status: "not-authorized" },
+          );
+        const success = await this.trip.refreshAtomic(current, signal);
+        return make(
+          this.reply(
+            success
+              ? "Your route is refreshed."
+              : "I couldn’t refresh the route. Your existing route is kept.",
+            { kind: success ? "mutation" : "error", error: !success },
+          ),
+          {
+            status: success ? "success" : "error",
+            trip: buildContext(
+              this.trip.getSnapshot().trip,
+              this.getLocation(),
+              Boolean(this.getLocation()),
+              [],
+              null,
+              this.now(),
+              this.getAccuracy?.(),
+            ),
+          },
+        );
       }
       const current = this.trip.getSnapshot().trip;
       const action =
@@ -232,9 +340,9 @@ export class AssistantEngine {
         action === "cancel" ||
         Boolean(
           target &&
-            (input.toLowerCase().includes(target.name.toLowerCase()) ||
-              /\b(first|second|third|fourth|fifth|[1-5])\b/i.test(input) ||
-              action === "remove"),
+          (input.toLowerCase().includes(target.name.toLowerCase()) ||
+            /\b(first|second|third|fourth|fifth|[1-5])\b/i.test(input) ||
+            action === "remove"),
         );
       if (!agreed && (!direct || !userNamedTarget)) {
         this.pending = {
@@ -270,10 +378,17 @@ export class AssistantEngine {
         return make(this.reply("That place is already in your trip."), {
           status: "unchanged",
         });
-      const stops =
+      let stops =
         action === "add"
           ? [...current.stops, { id: target!.id, place: target! }]
           : current.stops.filter((stop) => stop.place.id !== target!.id);
+      if (action === "add" && target!.verifiedDetour) {
+        stops = [...current.stops];
+        stops.splice(detourInsertionIndex(current, target!), 0, {
+          id: target!.id,
+          place: target!,
+        });
+      }
       const success = await this.trip.applyStopsAtomic(current, stops, signal);
       if (!success)
         return make(
@@ -289,18 +404,20 @@ export class AssistantEngine {
       this.lastStopId = action === "add" ? target!.id : null;
       const text =
         action === "add"
-          ? `${target!.name} is added as stop ${stops.length}. Your route is updated.`
+          ? `${target!.name} is added as stop ${stops.findIndex((s) => s.id === target!.id) + 1}. Your route is updated.`
           : `${target!.name} is removed. Your route is updated.`;
       return make(this.reply(text, { kind: "mutation" }), {
         status: "success",
         action,
-        place: placeFact(target!),
+        place: placeFact(target!, this.now()),
         trip: buildContext(
           this.trip.getSnapshot().trip,
           this.getLocation(),
           Boolean(this.getLocation()),
           [],
           null,
+          this.now(),
+          this.getAccuracy?.(),
         ),
       });
     } catch (error) {
@@ -340,9 +457,14 @@ export class AssistantEngine {
         ...(result?.places ? { places: result.places } : {}),
       });
     if (result) {
-      const chosen = result.places?.find(
-        (place) => place.id === plan.recommendationPlaceId,
-      );
+      const driving = Boolean(this.trip.getSnapshot().trip?.startedAt);
+      if (result.places)
+        result.places = result.places.map((place) => this.currentResult(place));
+      const chosen = driving
+        ? result.places?.[0]
+        : result.places?.find(
+            (place) => place.id === plan.recommendationPlaceId,
+          );
       const current = this.trip.getSnapshot().trip;
       if (
         chosen &&
@@ -356,7 +478,7 @@ export class AssistantEngine {
           trip: current,
           expires: this.now() + referenceLifetime,
         };
-        const text = `I found ${result.places!.length} verified options. Want to add ${chosen.name} as a stop?`;
+        const text = `${driving ? chosen.name + " is the top option." : `I found ${result.places!.length} verified options.`}${chosen.rating !== undefined ? ` Rated ${chosen.rating.toFixed(1)}.` : ""}${chosen.verifiedDetour ? ` ${formatDetour(chosen.verifiedDetour.durationSeconds)} compared with your route.` : " Driving detour unavailable."} Want to add ${driving ? "it" : chosen.name} as a stop?`;
         return present({ ...result, text, spokenText: text });
       }
       return present(result);
@@ -370,11 +492,11 @@ export class AssistantEngine {
           "I don’t have live traffic, police, or hazard reports. The map’s route time is a Google calculation snapshot.",
         fuelPrices: "I don’t have verified fuel prices.",
         detour:
-          "I can find places near your route, but I can’t calculate driving-detour times yet.",
+          "Ask me to find a stop with a detour limit. I can compare top candidates when your route and GPS are ready.",
         price:
           "I don’t have verified prices to compare. Try a specific restaurant or category.",
         timedStop:
-          "I can search ahead, but I can’t reliably schedule a stop a specific number of minutes away yet.",
+          "I can search around an estimated time ahead on your route. Exact arrival at a stop isn’t guaranteed.",
         navigation:
           "Turn-by-turn voice guidance and route preferences are not connected yet.",
       };
@@ -417,6 +539,8 @@ export class AssistantEngine {
             Boolean(this.getLocation()),
             this.recentResults(),
             this.currentPending(),
+            this.now(),
+            this.getAccuracy?.(),
           ),
         },
         signal,
@@ -438,6 +562,7 @@ export class AssistantEngine {
             "addTripStop",
             "removeTripStop",
             "cancelTrip",
+            "rerouteTrip",
           ].includes(call.name);
           if (mutation && mutationAttempted) {
             receipts.push({

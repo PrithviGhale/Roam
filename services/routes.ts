@@ -12,7 +12,7 @@ export const unconfiguredRoutesService: RoutesService = {
   async getRoute() {
     throw new ServiceError(
       "configuration",
-      "Google Routes is not connected. Add your Google configuration and restart Expo to plan real driving routes.",
+      "Google Routes is not connected. Set your ROAM Worker URL and restart Expo to plan real driving routes.",
     );
   },
 };

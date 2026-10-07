@@ -29,3 +29,16 @@ export function formatArrival(seconds: number, now = Date.now()): string {
     minute: "2-digit",
   });
 }
+export function formatArrivalTime(
+  timestamp: string | null | undefined,
+): string {
+  return timestamp && Number.isFinite(Date.parse(timestamp))
+    ? new Date(timestamp).toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : "—";
+}
+export function formatDetour(seconds: number): string {
+  return `${seconds < 0 ? "−" : "+"}${Math.ceil(Math.abs(seconds) / 60)} min`;
+}

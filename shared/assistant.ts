@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LIMITS } from "./limits";
 
 export const toolNames = [
   "searchFood",
@@ -8,6 +9,7 @@ export const toolNames = [
   "searchParking",
   "searchPlaces",
   "getTripStatus",
+  "rerouteTrip",
   "addTripStop",
   "removeTripStop",
   "cancelTrip",
@@ -20,6 +22,8 @@ const search = z
     maxResults: z.number().int().min(1).max(5).optional(),
     minRating: z.number().min(0).max(5).optional(),
     nearDestination: z.boolean().optional(),
+    timeAheadMinutes: z.number().min(1).max(120).optional(),
+    maxDetourMinutes: z.number().min(0).max(60).optional(),
   })
   .strict();
 const reference = z
@@ -37,6 +41,7 @@ export const toolSchemas = {
   searchParking: search,
   searchPlaces: search.extend({ query: text }),
   getTripStatus: z.object({}).strict(),
+  rerouteTrip: z.object({}).strict(),
   addTripStop: reference,
   removeTripStop: reference.extend({ stopId: text.optional() }),
   cancelTrip: z.object({}).strict(),
@@ -86,6 +91,9 @@ export interface PlaceFact {
   distanceMeters?: number;
   aheadMeters?: number;
   routeOffsetMeters?: number;
+  verifiedDetourSeconds?: number;
+  verifiedDetourMeters?: number;
+  detourCalculatedAt?: string;
 }
 export const placeFactSchema = z
   .object({
@@ -97,6 +105,9 @@ export const placeFactSchema = z
     distanceMeters: z.number().min(0).optional(),
     aheadMeters: z.number().min(0).optional(),
     routeOffsetMeters: z.number().min(0).optional(),
+    verifiedDetourSeconds: z.number().finite().optional(),
+    verifiedDetourMeters: z.number().finite().optional(),
+    detourCalculatedAt: z.string().datetime().optional(),
   })
   .strict();
 export const contextSchema = z
@@ -110,6 +121,9 @@ export const contextSchema = z
     calculatedAt: z.string().max(40).nullable(),
     estimatedRemaining: z.boolean(),
     offRoute: z.boolean(),
+    arrivalTime: z.string().datetime().nullable().optional(),
+    completedMeters: z.number().min(0).nullable().optional(),
+    percentageCompleted: z.number().min(0).max(100).nullable().optional(),
     recentResults: z.array(placeFactSchema).max(5),
     pending: z
       .object({
@@ -134,7 +148,7 @@ export const turnSchema = z
           })
           .strict(),
       )
-      .max(12),
+      .max(LIMITS.MAX_AI_HISTORY_MESSAGES),
     context: contextSchema,
   })
   .strict();
@@ -171,19 +185,21 @@ export const declarations = toolNames.map((name) => ({
   description: (
     {
       searchFood:
-        "Find verified restaurants, meals, burgers, dietary or brand matches ahead along the route or nearby. No verified price or detour time data.",
+        "Find verified food/brand/dietary matches. Top finalists get Google Routes detour comparisons. Optional maxDetourMinutes excludes unverified or excessive detours. timeAheadMinutes selects an approximate route region, not a guaranteed stop arrival. nearDestination anchors the search there.",
       searchGas:
-        "Find verified gas stations ahead or nearby. Fuel prices are unavailable.",
+        "Find gas ahead or nearby, with verified detours for finalists. Use maxDetourMinutes and timeAheadMinutes when requested. Fuel prices unavailable.",
       searchRestrooms:
-        "Find Google-listed public bathrooms; access is not guaranteed. Use for pee/bathroom requests.",
+        "Find Google-listed public bathrooms with finalist detours and optional maxDetourMinutes/timeAheadMinutes. Access not guaranteed. Use for pee requests.",
       searchCoffee:
-        "Find verified coffee/cafe options along the route or nearby. Exact timed stops are unsupported.",
+        "Find coffee/cafes. timeAheadMinutes estimates a search point using route duration/geometry; maxDetourMinutes enforces verified detours only. nearDestination searches near arrival.",
       searchParking:
-        "Find parking near the active destination by default. Availability/cost is unknown.",
+        "Find parking near the destination by default, with verified finalist detours when a route/GPS is available. Optional maxDetourMinutes. Availability/cost unknown.",
       searchPlaces:
-        "Search a specific business, city, address, or other place using verified Google data. Use query qualifiers; no new destination is set by this tool.",
+        "Search specific businesses/places. Supports nearDestination, approximate timeAheadMinutes and verified maxDetourMinutes. No new destination is set by this tool.",
       getTripStatus:
-        "Read the current destination, stops, distance and ETA snapshot or explicitly labeled local progress estimate.",
+        "Read verified route duration, local arrival timestamp, stops and GPS progress estimate. Use for when do we arrive, what time will I get there, how much longer or progress questions.",
+      rerouteTrip:
+        "Refresh the existing route from current GPS only when the user explicitly asks to refresh/reroute. Keep the route on failure. Never use this for detour searches.",
       addTripStop:
         "Add one recently presented verified result. Index is one-based and follows displayed cards. Execution requires explicit user acceptance; never claim success before receipt. Does not create a destination.",
       removeTripStop:

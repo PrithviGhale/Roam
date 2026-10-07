@@ -7,7 +7,10 @@ import type {
 } from "../../types/domain";
 import { tripProgress } from "../../utils/tripProgress";
 import type { PendingAction } from "./references";
-export function placeFact(place: Place): PlaceFact {
+import { LIMITS } from "../../shared/limits";
+import { freshDetour } from "../detours";
+export function placeFact(place: Place, now = Date.now()): PlaceFact {
+  const detour = freshDetour(place, now);
   const {
     id,
     name,
@@ -27,6 +30,13 @@ export function placeFact(place: Place): PlaceFact {
     ...(distanceMeters !== undefined ? { distanceMeters } : {}),
     ...(aheadMeters !== undefined ? { aheadMeters } : {}),
     ...(routeOffsetMeters !== undefined ? { routeOffsetMeters } : {}),
+    ...(detour
+      ? {
+          verifiedDetourSeconds: detour.durationSeconds,
+          verifiedDetourMeters: detour.distanceMeters,
+          detourCalculatedAt: detour.calculatedAt,
+        }
+      : {}),
   };
 }
 export function buildContext(
@@ -35,8 +45,10 @@ export function buildContext(
   fresh: boolean,
   results: Place[],
   pending: PendingAction | null,
+  now = Date.now(),
+  accuracy?: number | null,
 ): AssistantContext {
-  const progress = tripProgress(trip, location, fresh);
+  const progress = tripProgress(trip, location, fresh, now, accuracy);
   return {
     destination:
       trip?.destination.source === "verified"
@@ -51,7 +63,14 @@ export function buildContext(
     calculatedAt: trip?.route?.calculatedAt ?? null,
     estimatedRemaining: progress?.estimated ?? false,
     offRoute: progress?.offRoute ?? false,
-    recentResults: results.slice(0, 5).map(placeFact),
+    arrivalTime: progress?.arrivalTime ?? null,
+    completedMeters: progress?.progressAvailable
+      ? progress.completedMeters
+      : null,
+    percentageCompleted: progress?.progressAvailable
+      ? progress.percentageCompleted
+      : null,
+    recentResults: results.slice(0, 5).map((place) => placeFact(place, now)),
     pending: pending
       ? {
           action: pending.action,
@@ -64,6 +83,6 @@ export function buildContext(
 export function compactHistory(messages: Message[]) {
   return messages
     .filter((message) => !message.error)
-    .slice(-12)
+    .slice(-LIMITS.MAX_AI_HISTORY_MESSAGES)
     .map(({ role, text }) => ({ role, text: text.slice(0, 1200) }));
 }

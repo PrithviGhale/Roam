@@ -1,64 +1,128 @@
-# ROAM · V0.3
+# ROAM · V0.4
 
-**Your AI for the road.** An iPhone-first Expo SDK 54 / React Native / TypeScript app with real Google Places, driving routes, and a Gemini assistant through a Cloudflare Worker. This remains a route-planning prototype without turn-by-turn guidance. V0.1 and V0.2 functionality is retained.
+**Your AI for the road.** iPhone-first Expo SDK 54, React Native and TypeScript, Google Places/Routes, foreground GPS, and a Gemini assistant behind a Cloudflare Worker. V0.4 adds verified driving-detour comparisons, local arrival/progress estimates, conservative rerouting, and development diagnostics. The existing four tabs, themes, destination search, stop controls, text assistant, read-aloud and optional push-to-talk remain.
 
-## V0.3: Gemini driving assistant
+This is a route-planning/driving prototype. No turn-by-turn Navigation SDK, wake word, CarPlay, weather, community reports, police reports, fuel prices, background navigation or account UI is included.
 
-The backend uses **`@google/genai` 2.27.0** and **`gemini-3.8-flash`**, with low thinking and bounded output. This exact stable model is listed in [Google's current model documentation](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash); no model substitution was necessary. Availability and quotas still depend on your project. No live Gemini or Maps keys were available during implementation.
+## Run locally
 
-The phone sends a user message, at most twelve short history messages, and compact trip/result references to the Worker. Gemini chooses registered functions. The phone validates every call, invokes the **same V0.2 Places/Routes adapters and shared trip controller**, and sends compact verified receipts back for the next Gemini round. The Worker preserves signed, two-minute continuation state including original model parts/thought signatures; it stores no session in a database. Gemini secrets never enter the phone bundle.
+Use **Node 22+** (validated with Node 24.11.1 / npm 11). Install dependencies and copy the templates:
 
-Tools: `searchFood`, `searchGas`, `searchRestrooms`, `searchCoffee`, `searchParking`, `searchPlaces`, `getTripStatus`, `addTripStop`, `removeTripStop`, and `cancelTrip`. Query qualifiers and known rating filters are supported. Parking defaults to the active destination. Brand/burger queries reuse Text Search at the same bounded route-ahead samples. No second Places or Routes provider was created.
-
-Gemini's final output is a **validated response plan**, rather than unrestricted factual prose. ROAM renders place names, ratings, distances, and trip acknowledgments directly from verified service data and successful receipts. It can choose an existing recommendation ID but cannot supply fictional businesses/numbers to the UI. Unsupported/free-form/malformed factual answers are rejected or replaced with a safe, concise explanation. This intentionally constrains wording while keeping natural-language intent and tool selection in Gemini.
-
-Recent result IDs/order and pending acceptance live on the phone for ten minutes. “Add the second one” uses the displayed order, even if Gemini picks a different ID. A recommendation needs acceptance; explicit named/numbered add, remove, or cancel commands can execute. Ambiguous stop removal needs a name/number. Only one trip mutation is attempted per message. Assistant stop changes are transactional: failed recalculation restores the previous plan and route. Cancel/new-destination races cannot revive an older route. A successful receipt remains authoritative if the final Gemini request fails.
-
-### Local setup: two terminals
-
-```sh
+```powershell
 npm ci
+Copy-Item server/.dev.vars.example server/.dev.vars
+Copy-Item .env.example .env
 ```
 
-1. Get a **Gemini API key** from [Google AI Studio](https://aistudio.google.com/apikey). Confirm your project can use `gemini-3.8-flash` and review [pricing/quota](https://ai.google.dev/gemini-api/docs/pricing). Do not assume unlimited free usage.
-2. Enable **Places API (New)** and **Routes API** with billing on the Maps project. Create a server REST key restricted to those APIs. Cloudflare Workers do not provide a fixed dedicated egress IP by default; do not copy an IP restriction for your laptop into a deployed Worker key. Keep this key secret and protect the Worker. The native iOS map uses a separate app-restricted **Maps SDK for iOS** key.
-3. Copy `server/.dev.vars.example` to `server/.dev.vars` and fill the server secrets:
+Enable Google **Places API (New)** and **Routes API**, attach billing, and create a server REST key restricted to those APIs. Get a Gemini key from [Google AI Studio](https://aistudio.google.com/apikey); confirm access to [gemini-3.8-flash](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash) and review its [pricing/quotas](https://ai.google.dev/gemini-api/docs/pricing).
+
+Fill **server/.dev.vars** (ignored by Git):
 
 ```env
-GEMINI_API_KEY=your_gemini_secret
-GOOGLE_MAPS_API_KEY=your_maps_rest_secret
-# Optional on a trusted local network; required for a published Worker:
-ROAM_ACCESS_TOKEN=your_prototype_access_token
+GEMINI_API_KEY=your_private_gemini_key
+GOOGLE_MAPS_API_KEY=your_private_places_routes_key
+ROAM_ACCESS_TOKEN=your_private_testing_gate
 ```
 
-4. Copy `.env.example` to `.env` at the root. For an iPhone on the same Wi-Fi, use your computer's **LAN IPv4 address**, not `localhost`:
+Fill **.env** (ignored by Git):
 
 ```env
-EXPO_PUBLIC_ROAM_API_URL=http://192.168.1.10:8787
-EXPO_PUBLIC_ROAM_ACCESS_TOKEN=the_same_prototype_access_token
-EXPO_PUBLIC_GOOGLE_MAPS_IOS_KEY=your_app_restricted_ios_map_key
+EXPO_PUBLIC_ROAM_API_URL=http://YOUR_LAN_IPV4:8787
+EXPO_PUBLIC_ROAM_ACCESS_TOKEN=the_same_testing_gate
+EXPO_PUBLIC_GOOGLE_MAPS_IOS_KEY=your_application_restricted_ios_sdk_key
 EXPO_PUBLIC_GOOGLE_IOS_BUNDLE_IDENTIFIER=host.exp.Exponent
 ```
 
-Use the actual LAN address from `ipconfig`; for a browser on the computer use `http://localhost:8787`. Clear `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` when using the proxy. Set the bundle identifier variable to `com.prithvighale.roam` for a ROAM native development build. The iOS SDK key is intentionally public and must be app/API restricted. **Never create `EXPO_PUBLIC_GEMINI_API_KEY`.** Public prototype access tokens are extractable too; they are a basic private-testing gate, not user authentication.
-
-Terminal 1:
+Use the computer's IPv4 address from `ipconfig` for an iPhone on the same Wi-Fi; use `http://localhost:8787` for the computer's browser. Start two terminals:
 
 ```sh
 npm run server
 ```
 
-Terminal 2:
-
 ```sh
 npx expo start --go --clear
 ```
 
-The Worker listens on port 8787 / all LAN interfaces for phone testing. Allow this port through the local firewall only on a trusted private network. `/health` is a non-secret readiness endpoint; it does not validate upstream keys. Local HTTP can be unsuitable for native transport policies: if the phone blocks it, use a HTTPS development endpoint/tunnel rather than weakening release transport security. No backend is deployed by this repository setup alone.
+Use a compatible SDK 54 Expo Go installation. Allow LAN port 8787 and Metro only on a trusted private network. If native transport blocks local HTTP, use an HTTPS development endpoint/tunnel. No backend is deployed by starting Expo.
 
-### Worker deployment (manual, requires your Cloudflare account)
+**V0.4 routes all app Places/Routes REST requests through the Worker.** Remove legacy `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` from `.env`. It is no longer read by the mobile configuration or used as a native map key fallback. Never create `EXPO_PUBLIC_GEMINI_API_KEY`. The native Maps SDK key and testing token are intentionally public/extractable; they are not server secrets or user authentication. With no Worker URL the app retains the explicit fictional demo. A configured failure never silently substitutes fictional results.
 
-From the repository root:
+## Expo Go, iOS development build, production
+
+| Build                      | Capabilities / configuration                                                                                                                                                                                                                                                         |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Expo Go, SDK 54 compatible | Text assistant, TTS where supported, foreground GPS, Google REST through Worker. Native Google map support depends on the installed binary; a missing manager gets a readable setup message. Speech recognition cannot be added to Expo Go.                                          |
+| ROAM iOS development build | Native Google map with your Maps SDK for iOS key, speech recognition 3.1.3, microphone/speech/foreground-location permission strings, dev client, diagnostics in Profile. Native configuration changes require rebuilding.                                                           |
+| Production build           | Diagnostics route redirects to Profile and its entry is hidden. Use HTTPS Worker, published access protection, restricted native SDK key and provider quotas. Per-user authentication/privacy/terms and physical-device validation still need completion before public distribution. |
+
+For Windows, create a signed EAS iPhone development build (Apple development signing/device registration required):
+
+```sh
+npx eas-cli login
+npx eas-cli device:create
+npx eas-cli build --platform ios --profile development
+npx expo start --dev-client --clear
+```
+
+`eas.json` already includes a development-client profile. Supply native build variables through the selected EAS environment: `EXPO_PUBLIC_GOOGLE_MAPS_IOS_KEY`, `EXPO_PUBLIC_GOOGLE_IOS_BUNDLE_IDENTIFIER=com.prithvighale.roam`, and your HTTPS/LAN API URL/token as appropriate. Use a separate native iOS SDK key restricted to **Maps SDK for iOS** and bundle `com.prithvighale.roam`; optional Android key must be restricted to package/signing certificate. Metro cannot change native modules, permissions or compiled SDK keys. See [Google API security guidance](https://developers.google.com/maps/api-security-best-practices/).
+
+Push-to-talk uses the maintainer's SDK 54 version of [expo-speech-recognition](https://github.com/jamsch/expo-speech-recognition), pinned to **3.1.3**. Tap to speak/finish; capture lasts at most twenty seconds, only foreground, without saved audio files. Permission/network/recognizer errors retain text fallback. Dismissal/background stops capture, requests and TTS. OS speech services may process audio remotely. No always-listening microphone. Voice replies during a started trip are concise and interruptible; actual audio-session behavior requires an iPhone.
+
+## Verified detours and recommendations
+
+1. Places returns candidates using at most **two** route-ahead samples (2 km / 8 km), or **one** destination/time-ahead sample. Each provider search requests at most five results. Deduplicate, filter known rating requirements, and pre-rank using active-polyline projection, route offset, distance ahead, ratings/review count, verified open status and query match.
+2. Check at most **three finalists**. Calculate one **fresh baseline** from the current driver origin through the existing **unvisited** ordered stops to the destination. For each finalist calculate the same plan with the candidate inserted before the next unvisited stop ahead of it. Existing stops retain their relative order.
+3. Store candidate minus baseline **duration seconds** and **distance meters**, original/candidate totals, calculation timestamp and insertion index. These are Google Routes comparisons; straight-line distances and corridor offsets are never labeled driving detours. Signed differences are retained because a different route can be faster/shorter. UI rounds minute labels upward by magnitude.
+4. Rank successful comparisons first; lower added time dominates ratings. Within the scored order: added seconds × 50, added meters × 0.1, corridor offset × 4, distance ahead × 0.15, minus rating × 80, minus log10(1 + review count) × 45, plus 2000 for known closed status, minus 100 per name/query token match. Geometry excludes locations more than 100 m behind or 2 km outside the corridor when the driver can be projected. Off-route drivers fall back to nearby relevance.
+5. Cache comparisons in app-session memory for **60 seconds**, only within **150 m** of the comparison origin, keyed by route calculation, destination, ordered/visited stops and candidate. Bound to thirty entries. Changed plans/visited state, movement or expiry invalidate the entry. Cards show the route snapshot clock time. Old detour facts are removed from new assistant context/replies while ten-minute place references remain usable. No location history is persisted.
+
+**Routes budget per recommendation search:** a cold check needs **1 + N requests, N ≤ 3**, so at most **4**. A full cache hit needs **0**; partial misses need a fresh baseline plus missing candidates. No route/candidates or a full five-stop plan needs 0 checks. Failed comparisons leave cards unverified. A max-detour constraint excludes both unchecked and over-limit candidates, including failures; empty results mean none of the checked finalists met the limit, not that no possible business exists.
+
+Requests are sequential/cancelable and bounded by existing transport deadlines. Search never mutates the active trip. Adding a recommended candidate uses the preview insertion policy, then recalculates the actual trip from fresh GPS. Detours are snapshots; traffic and origin changes can alter the later route. Drive/traffic-aware Routes calculations do not include time spent at the stop.
+
+## Arrival, progress and rerouting
+
+Route duration and arrival timestamp are separate. Before starting, arrival = current device time + verified route duration. During a trip, project GPS onto the polyline, scale geometric fraction to Google's route distance, and use verified leg-duration distribution where available (route-wide fraction otherwise). Remaining duration + current local time produces arrival. The UI and assistant label this a **GPS progress estimate**, not live navigation/traffic. Inaccurate/stale/off-route fixes suppress the current arrival/progress rather than inventing updates.
+
+Completed distance aggregates across successful route changes. The displayed percentage is completed distance divided by completed + revised remaining route distance; it can change when the plan changes. No GPS history or accumulated point-to-point track is used. Self-intersecting routes, parallel roads and sparse geometry still need physical validation.
+
+Automatic rerouting runs only after Start Trip. A local distance-to-polyline check requires fresh fixes, accuracy ≤ 50 m, and offset greater than **max(70 m, 3 × reported accuracy)**. Require **three distinct updates over ≥ 6 seconds**; stale, duplicate, inaccurate or recovered fixes do not count. Attempts have a **60-second cooldown**, including failures. Planning and ordinary GPS motion issue no route refreshes. Manual refresh, destination/stop changes and confirmed deviation are the refresh triggers.
+
+While rerouting, show “Finding a better route…” and retain old geometry. Commit the new route only after success; failures keep the exact previous trip/route and display a recoverable error. Cancel/new-destination races cannot resurrect an old route. Three fresh accurate fixes (≤ 25 m accuracy) within 40 m of the next stop mark it visited without a provider call; visited stops are skipped in later routes. If GPS misses the stop, use **Mark visited** in Trips. This is not proof that you entered a business.
+
+Driving mode reduces destination/setup controls, emphasizes speed, destination, remaining duration/distance, arrival and progress, and retains large Ask ROAM/quick-action targets. Gemini receives `tripStarted`; system instructions and grounded templates shorten replies to a top recommendation or brief status. Exact detours appear only when computed.
+
+Try “I'm hungry,” “Find gas within a five-minute detour,” “Find coffee about 30 minutes from now,” “Find coffee near the destination,” “What time will I get there?” and “How much longer?” Time-ahead uses route geometry and leg-duration inversion to estimate a search region; it does not guarantee a stop arrival time. Qualified timed candidates must fall within 3 km of that region. Requests beyond remaining travel clamp to the destination.
+
+## Assistant / backend foundation
+
+Model **gemini-3.8-flash**, SDK **@google/genai 2.27.0**, low thinking. Gemini requests functions; the phone validates/executes the existing Places/Routes/trip services and returns typed receipts. Compact context includes arrival, progress, detour facts and driving state, without coordinates or polylines. Signed two-minute continuations preserve original model parts/thought signatures. Final response plans choose grounded UI templates; numeric facts never come from unrestricted model prose.
+
+Tools: `searchFood`, `searchGas`, `searchRestrooms`, `searchCoffee`, `searchParking`, `searchPlaces`, `getTripStatus`, `rerouteTrip`, `addTripStop`, `removeTripStop`, `cancelTrip`. Search parameters extend existing tools with `timeAheadMinutes` (1–120), `maxDetourMinutes` (0–60), `nearDestination`, known rating and query. No overlapping detour/progress tool swarm. Recent displayed IDs/order and pending confirmation expire after ten minutes. Recommendations require acceptance; explicit named/numbered actions can execute. Ambiguous removals need clarification. One mutation per message; failures preserve the trip. Restroom access/parking availability and prices are unknown.
+
+`server/src/auth.ts` centralizes identity/authorization. It strictly parses one Bearer credential, rejects malformed/combined headers, hashes secrets to equal lengths, and compares with timing-safe Node crypto under `nodejs_compat`. `AUTH_MODE=prototype` is the current shared testing gate; trusted localhost/private-IP development may omit the token. Published requests fail closed without protection. Future `AUTH_MODE=user` requires an injected trusted `UserTokenVerifier` and fails closed when absent; it does not silently fall back to prototype auth. User rate keys hash verified subjects. No user identity is trusted from a client header, and no account UI was added.
+
+The Worker uses fixed Google endpoints/field masks and validates coordinates, strings, stops, results, history and tool arguments. JSON bodies are capped at 128 KiB with a read deadline; errors are sanitized and responses are not cached. Private REST/Gemini keys stay in ignored server variables/Worker secrets. No prompt, precise GPS, audio or credentials are written to production application logs. No database or long-term conversation store.
+
+| Native rate binding    | Default per minute / Cloudflare location |
+| ---------------------- | ---------------------------------------: |
+| All protected requests |                                       90 |
+| Gemini rounds          |                                       20 |
+| Places operations      |                                       45 |
+| Routes operations      |                                       24 |
+| Diagnostics            |                                        5 |
+
+Prototype requests share a rate identity; future verified users get hashed identities plus a shared provider ceiling. These [Cloudflare rate bindings](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/) are per location and eventually consistent, **not global spend caps**. Set upstream quotas and billing alerts too. Local behavior uses the same bounded defaults and no external auth service.
+
+Cost defaults live in `shared/limits.ts`: five place results/stops, three detour finalists, twelve AI history messages, three model rounds/six tools per turn, one mutation, sixty-second detour TTL and reroute cooldown. Search responses show at most five cards (default three). Tune lower values there and rebuild; the DetourService/RouteDeviationMonitor constructors also accept lower/test overrides. Worker `MAX_PLACE_RESULTS`, `MAX_STOPS`, `MAX_AI_HISTORY_MESSAGES` may lower incoming budgets; match client constants or excessive client requests will fail safely. Rate amounts live in `server/wrangler.jsonc`. Regenerate types after config changes:
+
+```sh
+npm run types --workspace server
+```
+
+## Deploy Worker manually
+
+This requires your Cloudflare account and secrets; it was not deployed during implementation.
 
 ```sh
 npm exec --workspace server -- wrangler login
@@ -68,142 +132,31 @@ npm exec --workspace server -- wrangler secret put ROAM_ACCESS_TOKEN
 npm run deploy --workspace server
 ```
 
-Enter values at the interactive prompts; never paste them into committed configuration or shell command arguments. Then set `EXPO_PUBLIC_ROAM_API_URL` to your HTTPS Worker URL and restart Expo. Configure `ALLOWED_ORIGINS` in `server/wrangler.jsonc` for any browser origin you use and regenerate types after config changes. Native requests have no browser Origin header. Published requests fail closed without the prototype access token. Add per-user authentication / stronger abuse controls before public distribution.
+Enter keys interactively. Set the phone's URL to the resulting HTTPS endpoint; restart Expo. Adjust `ALLOWED_ORIGINS` for browser testing. Native requests have no browser Origin header. A Cloudflare Worker has no fixed dedicated egress IP by default: use API restrictions on the server key and protected endpoints; don't copy a laptop IP restriction and assume it works on Workers. Native SDK keys need separate application restrictions. Add real auth/global budget controls before a public release.
 
-The Worker validates schemas and 128 KiB request bodies, rejects arbitrary Google operations/endpoints/field masks, fixes Google field masks server-side, bounds query/result/stop sizes, and sanitizes errors. Cloudflare rate bindings allow 90 protected requests/minute and 20 Gemini rounds/minute per Cloudflare location for the prototype as a whole; these are not a global spending ceiling or per-user quotas. At most three Gemini calls and six local tools are allowed per message; only two rounds can request tools. No automatic retries or long-term conversation/location storage are added. Logs omit prompts, keys and precise location.
+## Development diagnostics
 
-### Push-to-talk and read-aloud
+Open **Profile → Device diagnostics** in a development session. The entry and screen are disabled in production.
 
-`expo-speech-recognition` **3.1.3** is pinned to the maintainer's [SDK 54 release](https://github.com/jamsch/expo-speech-recognition#installation). Actual iPhone push-to-talk requires a **development build**, microphone permission, and speech-recognition permission. Expo Go cannot add this native module. Optional native-module lookup leaves Expo Go/web text input and `expo-speech` read-aloud intact; tapping an unavailable microphone shows an explanation, not a fake listening session.
+- Permission reads don't prompt. Show current GPS coordinate, accuracy, speed, heading, timestamp/freshness and route tracking only on this screen; no GPS history/logs.
+- Worker health proves reachability only. Auth check makes no upstream call and reports credentials as **configured/untested**, not “connected.”
+- Optional explicit Places and Routes buttons each make **one billable request** using fixed Boston sample data, with no phone location. Gemini reads model metadata without generation; this does not prove inference quota. Provider probes on published hosts require `ENABLE_DEV_DIAGNOSTICS=true`; leave false in production. Five diagnostic requests/minute.
+- Separately test microphone/speech permission, start/stop recognition, transcript/confidence when available, available TTS voices/playback/stop. Diagnostic transcription is not sent to Gemini. Background/dismiss cancels work; audio persistence stays disabled.
+- Missing backend/native speech, unauthorized, throttled, unavailable and untested states remain distinct. Audio completion callbacks cannot prove that a speaker was audible.
 
-Tap the microphone, speak, then tap again to finish (or let the recognizer finish). Capture is bounded to twenty seconds, foreground only, and audio-file persistence is disabled. The OS speech service may process audio remotely depending on iOS, locale and device support. Recognizer/network/permission failures retain text fallback. Backgrounding or dismissing the assistant aborts recognition and pending AI work. No wake word or always-listening microphone is added.
+## Validation and remaining work
 
-Concise replies speak automatically for voice requests or a started trip when “Voice replies” is on. Lists stay on screen as verified cards. The microphone/Stop interrupts speech, and generation guards prevent overlapping or late speech. Actual microphone/TTS audio-session behavior still needs physical-device testing.
-
-`expo-dev-client`, the speech config plugin, and `eas.json` development profile are included. On Windows, register your iPhone and make an EAS development build using the commands in the iPhone section below. Supply the public native build variables through the selected EAS environment; Metro cannot add native permissions/modules or change native SDK keys.
-
-### Gemini testing
-
-See [the V0.3 manual checklist](docs/assistant-checklist.md). With a real destination ready, type “I’m hungry,” “Find me a burger,” “Find Chick-fil-A ahead,” “Add the second one,” “What’s my ETA?”, “Actually remove that stop,” “I need gas,” “I need to pee,” and “Find parking near my destination.” Confirm actual Google cards, route changes, and short grounded answers. Unsupported weather/traffic/prices/timed stops must get an honest limitation. Invalid keys / offline backend must leave the existing route intact.
-
-Automated suites use **mock Gemini and injected Google responses**; they never depend on paid/live calls. `npm run check` runs phone/service TypeScript and tests plus server TypeScript and tests. `npm run server:build` is a Worker **dry run**, not a deployment. No lint task exists in this repository.
-
-## V0.2 implemented features
-
-- Real destination autocomplete, session tokens, selected-place details, and 350 ms search debounce.
-- Google driving routes with decoded polylines, camera fitting, final-destination and numbered stop markers, driving duration, arrival estimate, and distance in US units.
-- Shared trip state; Start Trip, End / Cancel, explicit Refresh / Retry, and up to five ordered stops. Adding or removing a stop clears old route information immediately and recalculates from the latest fresh GPS fix.
-- Food, Gas, Restroom, Coffee, and Parking results near the driver or sampled ahead on the route. Available ratings, addresses, hours, and provider attributions come from Google. Missing fields stay absent.
-- GPS speed in MPH, foreground-only location, recentering, retained dark/light themes, four tabs, assistant sheets, and read-aloud responses.
-- Loading, no-results, denied-location, timeout, configuration, quota, and network errors. Stale requests cannot restore canceled searches or routes. Missing configuration opens an explicit fictional demo instead of crashing.
-
-## Google Cloud setup
-
-Create a Google Cloud project, attach billing, and enable:
-
-| API                      | Purpose                                                                          |
-| ------------------------ | -------------------------------------------------------------------------------- |
-| **Places API (New)**     | Autocomplete, Details, Nearby Search; reusable Text Search adapter               |
-| **Routes API**           | `computeRoutes`, driving duration/distance, geometry, ordered intermediate stops |
-| **Maps SDK for iOS**     | Native Google basemap in an iOS development / standalone build                   |
-| **Maps SDK for Android** | Only if building/testing Android                                                 |
-
-The Maps features do not require Legacy Places, Directions, Geocoding, or Navigation SDK. Gemini setup is separate, described above. API names refer to Google Cloud's API Library. See [Places setup](https://developers.google.com/maps/documentation/places/web-service/cloud-setup), [Routes setup](https://developers.google.com/maps/documentation/routes/cloud-setup), and [Expo SDK 54 maps configuration](https://docs.expo.dev/versions/v54.0.0/sdk/map-view/).
-
-Create a REST key for Places and Routes. Apply API restrictions to those two APIs, configure request quotas, and set billing alerts (alerts alone do not cap spending). Create a separate iOS native map key restricted to **Maps SDK for iOS** and the bundle identifier `com.prithvighale.roam`. Android should have its own SDK key restricted to the package and signing certificate. Native key configuration requires rebuilding the app; Metro reloads cannot change native keys.
-
-**Public client keys are extractable.** Direct REST calls are provided for local prototype testing. The client sends `X-Ios-Bundle-Identifier`, defaulting to Expo Go's `host.exp.Exponent`. Test iOS application restrictions for each REST API, including confirming an incorrect identifier is rejected; do not assume a header protects both services. If restrictions prevent Routes requests, use an authenticated backend with a server key restricted by IP and API. Browser referrer restrictions do not protect native REST requests. Expo Go's shared identifier is not a production app restriction. Do not publish with an unrestricted REST key. Google recommends a secure proxy where direct mobile web-service restrictions are insufficient: [API security guidance](https://developers.google.com/maps/api-security-best-practices).
-
-## Environment variables
-
-Copy `.env.example` to `.env` in this directory. `.env` is ignored by Git.
-
-```env
-# Minimum for direct, real Places + Routes requests:
-EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=your_places_and_routes_key
-
-# Recommended for a native iOS build:
-EXPO_PUBLIC_GOOGLE_MAPS_IOS_KEY=your_ios_sdk_key
-
-# Expo Go; change to com.prithvighale.roam for a ROAM native build:
-EXPO_PUBLIC_GOOGLE_IOS_BUNDLE_IDENTIFIER=host.exp.Exponent
-```
-
-Optional `EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY` supplies the Android SDK key. Native map keys fall back to `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` if omitted; a fallback key must also allow the applicable Maps SDK. Separate restricted keys are recommended. Every `EXPO_PUBLIC_*` value is visible in the bundle; never place Gemini or other private server credentials there.
-
-`EXPO_PUBLIC_ROAM_API_URL` switches both AI and REST requests to the **implemented V0.3 Worker**. Its Google contract is `POST <base>/google/{autocomplete|details|nearby|text-search|routes}` with operation-specific validated bodies and optional `placeId` / `sessionToken`; it returns the existing Google JSON shape. `EXPO_PUBLIC_ROAM_ACCESS_TOKEN` supplies the optional local / required published prototype bearer token. Prefer this proxy over shipping a direct REST key.
-
-With neither REST key nor proxy URL, the app uses labeled fictional fixtures and previews pins, without calling Google or inventing routes. A configured request failure stays an error; it never silently substitutes demo results.
-
-## Running locally
-
-Use Node.js 22+ for the full app and Worker setup (Node 24.11.1 was used during validation).
-
-```sh
-npm ci
-npm start
-```
-
-After editing `.env`, restart with `npx expo start --clear`. `npm run web` provides UI review; it does not implement a Google web map. Configured mode uses a plain preview background, while unconfigured mode retains the original illustrative demo.
-
-## iPhone testing
-
-1. Install an **Expo Go version compatible with SDK 54**. Compatibility changes over time; check [Expo's version guidance](https://docs.expo.dev/troubleshooting/expo-go-version-mismatch/).
-2. Put the iPhone and computer on the same Wi-Fi. Run `npm start`, scan the terminal QR with iPhone Camera, and open in Expo Go. Allow Node through the local firewall if needed. If LAN discovery fails, try `npx expo start --tunnel`.
-3. Grant location **while using the app**. Without a Google key, check the existing Apple Maps / GPS / demo flow first.
-4. Add the REST key and restart Metro. Search a city, address, or business; select a result to calculate the route. Test the five actions, Add as stop, stop removal in Trips, Start Trip, and Cancel.
-5. If your Expo Go build has no native Google provider, ROAM displays a setup message. Places and route summaries can still load, but map geometry requires a Google-enabled development build. Setting an SDK key in `.env` cannot add native support to an installed Expo Go binary.
-
-On Windows, use an EAS cloud iOS development build for that fallback (Apple development signing and device registration are required):
-
-```sh
-npx eas-cli login
-npx eas-cli build:configure
-npx eas-cli device:create
-npx eas-cli build --platform ios --profile development
-npx expo start --dev-client --clear
-```
-
-The included `eas.json` development profile sets `"developmentClient": true` and `"distribution": "internal"`. Before building, set the iOS SDK key and set `EXPO_PUBLIC_GOOGLE_IOS_BUNDLE_IDENTIFIER=com.prithvighale.roam`. Supply the public variables to the selected EAS build environment; your ignored local `.env` is not a reliable cloud build configuration. Install the resulting build on the registered iPhone, then scan Metro's QR in that app. EAS/device builds have not been executed here. On a Mac, `npx expo run:ios --device` is another option; the required `expo-dev-client` is included.
-
-No simulator runs on Windows. Follow [the device checklist](docs/device-checklist.md) while stationary; do not operate the prototype while driving.
-
-## Route-aware discovery and API usage
-
-Project the driver onto the decoded route, then sample approximately **2 km and 8 km ahead**, clamped to the destination and merged when within 500 m. Search a 2 km circle at each point (maximum ten results per call), deduplicate place IDs, and reject candidates more than 100 m behind or 2 km from the route. Rank mainly by lateral offset, then forward distance, known rating, and known closed status. Show at most twelve results. More than 3 km off route, fall back to nearby search and label it accordingly. This geometric algorithm can misjudge loops, divided roads, exits, rivers, and road access; it does **not** calculate driving detours or guarantee convenience.
-
-Calls happen on explicit interactions: debounced autocomplete (two-character minimum), one Details request on selection, one nearby request without a route or at most two with a route, and one Routes request per destination / stop change or manual retry/refresh. Opening/retrying a sheet snapshots GPS and route; GPS updates alone do not issue Places or Routes calls. Repeated route taps are guarded, requests have 12-second timeouts, and superseded requests are canceled or ignored. Cancellation may still leave a billable server request. There are no automatic retries or persistent Google-result caches. Results exist only in the current in-memory interaction/trip.
-
-Field masks request only the fields the UI uses. Ratings and opening-hours fields can use higher billing tiers; autocomplete session tokens do not make every request free. Check current [Places billing](https://developers.google.com/maps/documentation/places/web-service/usage-and-billing) and [Routes billing](https://developers.google.com/maps/documentation/routes/usage-and-billing) before testing at scale.
-
-## Privacy and attribution
-
-The app requests foreground location only, stops subscriptions in the background, and stores no long-term location history. No analytics, accounts, or tracking libraries were added. Location/bias goes to the configured Google services only for user-requested search/routing; native Google Maps also handles its normal map requests. Logs omit keys, coordinates, raw provider responses, and URLs. Theme preference is stored locally; trips and conversation are in memory.
-
-Google geometry and place markers are displayed only on a Google basemap. Google Maps attribution is shown with non-map results, with supplied third-party attributions. Before public distribution, add public Terms of Use and Privacy Policy and review [Places policies](https://developers.google.com/maps/documentation/places/web-service/policies) and [Routes policies](https://developers.google.com/maps/documentation/routes/policies). V0.2 does not add public legal pages or persistent Google data storage.
-
-## Checks
-
-V0.3 validation: **64 tests passed** (53 app/service, 11 server), both TypeScript checks passed, Expo Doctor passed 18/18, iOS/web exports succeeded, Worker dry-run build succeeded, and local `/health` / missing-key error responses were smoke-tested. `npm ci` succeeded. No physical iPhone or live provider calls were tested.
-
-V0.2 checkpoint validation on Windows: TypeScript passed, 34 tests passed, Expo Doctor passed 18/18 checks, and iOS/web bundle exports succeeded. V0.3 checks also include the Worker and assistant suites. Live APIs and physical-device checks remain pending.
+Credential-free tests use mocked Gemini and Google adapters. All original **64 tests** remain. V0.4 has **93 passing tests** (74 app/service, 19 backend), both TypeScript checks passing, **18/18 Expo Doctor checks**, successful **iOS/web exports**, and a successful **Worker dry-run build**. Local Worker runtime smoke checks returned V0.4 health, authenticated development configuration, honest missing-provider state, and malformed-header 401. `npm ci` succeeded. No automated suite needs live billing credentials. Dependency audit is **44 remaining findings**, down from 45; see the audit document for severity and scope.
 
 ```sh
 npm run check
 npx expo-doctor
 npx expo export --platform ios --platform web --max-workers 2
+npm run server:build
 ```
 
-Tests cover GPS/demo behavior, formatting, malformed polylines, Google contracts/errors, route ranking, trip lifecycle/cancellation, and V0.3 tool/reference/consent/security flows. They use injected responses, not a real key. Windows exports cannot prove device rendering, native key validity, billing, provider coverage, or physical GPS. No live credentials or physical iPhone were available. `npm audit` currently reports 45 upstream findings (19 moderate, 26 high), including SDK 54 dependencies and Worker development tooling's image library. The attempted tooling patch override did not resolve that workspace dependency and was removed; these advisories remain. The server bundle does not import that image library. No forced Expo upgrade was made.
+`server:build` is a dry run, not deployment. No lint task is configured. See [architecture](docs/architecture.md), [physical-device checklist](docs/device-checklist.md), [assistant checks](docs/assistant-checklist.md), and [dependency audit](docs/security-audit.md).
 
-## Limitations and V0.4
+No physical iPhone, live Maps/Gemini call, signed EAS build, microphone/TTS audio session or public Worker deployment has been verified. Configure keys/billing, URL/token, native SDK restrictions and signing before those tests. Account auth remains an interface rather than a deployed identity provider. No navigation guidance, stop dwell time, guaranteed timed arrivals or global billing cap is claimed.
 
-- Without a backend URL the assistant remains a labeled demo; configured Gemini requires server secrets and connectivity. Actual speech input needs a development build. No wake word, live weather/traffic/police reports, fuel prices, accounts, background navigation, CarPlay, or Navigation SDK.
-- Start Trip is state management and a HUD, not turn-by-turn navigation. Google traffic-aware duration is a snapshot at calculation. Remaining distance/time is explicitly labeled as a local geometric estimate; GPS updates do not refresh traffic. Off-route recovery requires Refresh route.
-- Stops retain insertion order, maximum five; there is no optimization, automatic arrival, or automatic removal of completed stops. Remove a completed stop before refreshing so it is not routed again.
-- Nearby distances and route offsets are geometric estimates, never presented as driving-detour times. Ratings/hours/restroom availability may be absent; public bathroom access is not guaranteed.
-- No offline routing or persisted trip history. Google native support, attribution placement, small-screen/large-text layout, and real API errors still need device QA.
-
-For V0.4, prioritize physical iPhone QA, per-user backend authentication/rate limits, stop-arrival tracking, and measured driving-detour estimates before expanding navigation features. Gemini cannot change route preferences or choose a new destination in V0.3; use the normal map UI for those.
-
-See [architecture](docs/architecture.md) for service boundaries. V0.1 `7467212` is retained; V0.2 was checkpointed as `5c9ea61` before V0.3 changes.
+V0.2 checkpoint: `5c9ea61a24ed828223a3c0f303a603f8775d06dd`. V0.3: `5ed237739b5669572371572578fd75a90873c4d9`. V0.4 is a separate forward commit; history is retained.

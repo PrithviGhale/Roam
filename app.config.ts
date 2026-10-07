@@ -3,7 +3,7 @@ import type { ExpoConfig } from "expo/config";
 const config: ExpoConfig = {
   name: "ROAM",
   slug: "roam",
-  version: "0.3.0",
+  version: "0.4.0",
   orientation: "portrait",
   scheme: "roam",
   userInterfaceStyle: "automatic",
@@ -12,18 +12,14 @@ const config: ExpoConfig = {
     supportsTablet: false,
     bundleIdentifier: "com.prithvighale.roam",
     config: {
-      googleMapsApiKey:
-        process.env.EXPO_PUBLIC_GOOGLE_MAPS_IOS_KEY ||
-        process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
+      googleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_IOS_KEY,
     },
   },
   android: {
     package: "com.prithvighale.roam",
     config: {
       googleMaps: {
-        apiKey:
-          process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY ||
-          process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
+        apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY,
       },
     },
   },

@@ -4,11 +4,7 @@ import * as Location from "expo-location";
 import { speedInMph, validCoordinate } from "../utils/location";
 
 export type LocationStatus =
-  | "requesting"
-  | "denied"
-  | "locating"
-  | "ready"
-  | "unavailable";
+  "requesting" | "denied" | "locating" | "ready" | "unavailable";
 export function useLocation() {
   const [location, setLocation] = useState<Location.LocationObject | null>(
     null,
@@ -168,5 +164,10 @@ export function useLocation() {
     canAskAgain,
     retry,
     fresh,
+    accuracy: location?.coords.accuracy ?? null,
+    timestamp: location?.timestamp ?? null,
+    rawSpeed: location?.coords.speed ?? null,
+    permissionStatus:
+      status === "denied" ? "denied" : location ? "granted" : status,
   };
 }

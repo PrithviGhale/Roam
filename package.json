@@ -1,6 +1,6 @@
 {
   "name": "roam",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "workspaces": [
     "server"
@@ -40,6 +40,9 @@
     "react-native-screens": "~4.16.0",
     "react-native-web": "^0.21.0",
     "zod": "^4.6.5"
+  },
+  "overrides": {
+    "postcss": "8.5.29"
   },
   "devDependencies": {
     "@types/react": "~19.1.10",

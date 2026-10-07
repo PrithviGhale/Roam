@@ -68,7 +68,12 @@ export const googleSchemas = {
       origin: z
         .object({ location: z.object({ latLng: coordinate }).strict() })
         .strict(),
-      destination: z.object({ placeId: id }).strict(),
+      destination: z.union([
+        z.object({ placeId: id }).strict(),
+        z
+          .object({ location: z.object({ latLng: coordinate }).strict() })
+          .strict(),
+      ]),
       intermediates: z
         .array(z.object({ placeId: id }).strict())
         .max(5)

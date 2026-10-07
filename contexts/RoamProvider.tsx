@@ -22,6 +22,8 @@ type RoamSession = ReturnType<typeof useLocation> & {
   cancelTrip: TripController["cancel"];
   retryRoute: TripController["retry"];
   applyAssistantStops: TripController["applyStopsAtomic"];
+  refreshRoute: TripController["refreshAtomic"];
+  markStopVisited: TripController["markStopVisited"];
 };
 const RoamContext = createContext<RoamSession | null>(null);
 export function RoamProvider({ children }: PropsWithChildren) {
@@ -42,6 +44,22 @@ export function RoamProvider({ children }: PropsWithChildren) {
     controller.getSnapshot,
   );
   useEffect(() => () => controller.dispose(), [controller]);
+  useEffect(() => {
+    if (location.coordinate && location.timestamp !== null)
+      controller.observeLocation({
+        coordinate: location.coordinate,
+        accuracy: location.accuracy,
+        timestamp: location.timestamp,
+        fresh: location.fresh,
+      });
+  }, [
+    controller,
+    location.coordinate,
+    location.accuracy,
+    location.timestamp,
+    location.fresh,
+    tripState.trip?.startedAt,
+  ]);
   const destination = tripState.trip?.destination ?? null;
   const setDestination = (place: Place | null) => {
     if (place) void controller.selectDestination(place);
@@ -61,6 +79,8 @@ export function RoamProvider({ children }: PropsWithChildren) {
         cancelTrip: controller.cancel,
         retryRoute: controller.retry,
         applyAssistantStops: controller.applyStopsAtomic,
+        refreshRoute: controller.refreshAtomic,
+        markStopVisited: controller.markStopVisited,
       }}
     >
       {children}

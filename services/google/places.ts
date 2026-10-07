@@ -8,6 +8,7 @@ import { distanceBetween } from "../../utils/geo";
 import { validCoordinate } from "../../utils/location";
 import { ServiceError, isCancelled } from "../errors";
 import { rankRoutePlaces, sampleAhead } from "../routeAware";
+import { LIMITS } from "../../shared/limits";
 import type { GoogleClient } from "./client";
 import {
   normalizePlace,
@@ -47,7 +48,7 @@ export function createGooglePlacesService(client: GoogleClient): PlacesService {
           .join(","),
         body: {
           includedTypes: nearbyTypes[category],
-          maxResultCount: 10,
+          maxResultCount: LIMITS.MAX_PLACE_RESULTS,
           rankPreference: "DISTANCE",
           locationRestriction: { circle: { center: coordinate, radius: 2000 } },
         },
@@ -72,7 +73,7 @@ export function createGooglePlacesService(client: GoogleClient): PlacesService {
             .join(","),
           body: {
             textQuery: query.trim().slice(0, 200),
-            pageSize: 10,
+            pageSize: LIMITS.MAX_PLACE_RESULTS,
             ...(origin && validCoordinate(origin)
               ? { locationBias: { circle: { center: origin, radius: 50000 } } }
               : {}),

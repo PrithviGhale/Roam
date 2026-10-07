@@ -19,7 +19,19 @@ export interface Place {
   distanceMeters?: number;
   routeOffsetMeters?: number;
   aheadMeters?: number;
+  verifiedDetour?: VerifiedDetour;
   attributions?: { provider: string; uri?: string }[];
+}
+export interface VerifiedDetour {
+  durationSeconds: number;
+  distanceMeters: number;
+  baselineDurationSeconds: number;
+  baselineDistanceMeters: number;
+  candidateDurationSeconds: number;
+  candidateDistanceMeters: number;
+  calculatedAt: string;
+  insertionIndex: number;
+  source: "google-routes-comparison";
 }
 export interface PlaceSuggestion {
   id: string;
@@ -54,17 +66,23 @@ export interface Route {
 export interface TripStop {
   id: string;
   place: Place;
+  visited?: boolean;
 }
 export interface ActiveTrip {
   destination: Place;
   route: Route | null;
   stops: TripStop[];
   startedAt?: string;
+  completedBeforeRouteMeters?: number;
 }
 export interface TripState {
   trip: ActiveTrip | null;
   status: "idle" | "loading" | "ready" | "error";
   error: string | null;
+  tracking?: {
+    state: "onRoute" | "possiblyOffRoute" | "rerouting";
+    error?: string;
+  };
 }
 export interface Weather {
   temperatureCelsius: number;

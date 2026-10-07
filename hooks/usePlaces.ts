@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { placesService } from "../services/places";
+import { useRoam } from "../contexts/RoamProvider";
+import { createTripTools } from "../services/tools";
+import { detourService } from "../services/recommendations";
 import { errorMessage, isCancelled } from "../services/errors";
 import { projectOntoRoute } from "../utils/geo";
 import type {
@@ -8,6 +11,7 @@ import type {
   PlaceCategory,
   PlaceSuggestion,
   Route,
+  ActiveTrip,
 } from "../types/domain";
 
 export function usePlaces(
@@ -18,6 +22,7 @@ export function usePlaces(
   route: Route | null = null,
   sessionToken?: string,
 ) {
+  const roam = useRoam();
   const [places, setPlaces] = useState<Place[]>([]);
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -25,11 +30,12 @@ export function usePlaces(
   const [attempt, setAttempt] = useState(0);
   const [alongRoute, setAlongRoute] = useState(false);
   const searchQuery = query.trim();
-  const latest = useRef({ origin, route });
-  latest.current = { origin, route };
+  const latest = useRef({ origin, route, trip: roam.tripState.trip });
+  latest.current = { origin, route, trip: roam.tripState.trip };
   const snapshot = useRef<{
     origin: Coordinate | null;
     route: Route | null;
+    trip: ActiveTrip | null;
     category: PlaceCategory | null;
     attempt: number;
   } | null>(null);
@@ -43,6 +49,7 @@ export function usePlaces(
     if (
       !snapshot.current ||
       snapshot.current.category !== category ||
+      snapshot.current.route !== route ||
       snapshot.current.attempt !== attempt
     )
       snapshot.current = { ...latest.current, category, attempt };
@@ -69,15 +76,38 @@ export function usePlaces(
     const timer = setTimeout(
       () => {
         const options = { signal: controller.signal, sessionToken };
+        const tools = createTripTools(
+          placesService,
+          {
+            getSnapshot: () => ({
+              trip: context.trip,
+              status: "ready",
+              error: null,
+            }),
+            applyStopsAtomic: async () => false,
+            cancel: () => {},
+          },
+          () => context.origin,
+          detourService,
+        );
+        const searches = {
+          food: tools.searchFood,
+          gas: tools.searchGas,
+          restroom: tools.searchRestrooms,
+          coffee: tools.searchCoffee,
+          parking: tools.searchParking,
+        };
         const request = category
-          ? context.route && context.origin
-            ? placesService.alongRoute(
-                category,
-                context.origin,
-                context.route,
-                options,
-              )
-            : placesService.nearby(category, context.origin, options)
+          ? placesService.mode === "google"
+            ? searches[category]({}, options)
+            : context.route && context.origin
+              ? placesService.alongRoute(
+                  category,
+                  context.origin,
+                  context.route,
+                  options,
+                )
+              : placesService.nearby(category, context.origin, options)
           : placesService.autocomplete(searchQuery, context.origin, options);
         void request
           .then((value) => {
@@ -101,7 +131,7 @@ export function usePlaces(
       controller.abort();
       clearTimeout(timer);
     };
-  }, [searchQuery, category, enabled, attempt, sessionToken]);
+  }, [searchQuery, category, enabled, attempt, sessionToken, route]);
   return {
     places,
     suggestions,

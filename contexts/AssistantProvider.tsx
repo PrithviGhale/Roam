@@ -19,6 +19,7 @@ import { createAssistantTransport } from "../services/assistant/client";
 import { googleConfiguration, roamAccessToken } from "../services/config";
 import { speechInputModule } from "../services/speechInput";
 import { placesService } from "../services/places";
+import { detourService } from "../services/recommendations";
 import { isCancelled } from "../services/errors";
 import type { Message, Place, VoiceState } from "../types/domain";
 
@@ -74,11 +75,16 @@ export function AssistantProvider({ children }: PropsWithChildren) {
         applyStopsAtomic: (trip, stops, signal) =>
           roamRef.current.applyAssistantStops(trip, stops, signal),
         cancel: () => roamRef.current.cancelTrip(),
+        refreshAtomic: (trip, signal) =>
+          roamRef.current.refreshRoute(trip, signal),
       },
       () =>
         roamRef.current.fresh && roamRef.current.status === "ready"
           ? roamRef.current.coordinate
           : null,
+      undefined,
+      detourService,
+      () => roamRef.current.accuracy,
     );
   const busy = useRef(false),
     mounted = useRef(true),

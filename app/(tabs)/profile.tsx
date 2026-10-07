@@ -3,6 +3,7 @@ import { Page } from "../../components/Page";
 import { Eyebrow, Icon, Panel, Button } from "../../components/ui";
 import { useTheme } from "../../themes/ThemeProvider";
 import { useRoam } from "../../contexts/RoamProvider";
+import { router } from "expo-router";
 
 export default function ProfileScreen() {
   const { theme, setTheme } = useTheme();
@@ -102,6 +103,15 @@ export default function ProfileScreen() {
         )}
       </Panel>
       <View style={{ gap: 10 }}>
+        {__DEV__ && (
+          <Button
+            secondary
+            icon="construct-outline"
+            onPress={() => router.push("/diagnostics")}
+          >
+            Device diagnostics
+          </Button>
+        )}
         <Eyebrow>BUILT FOR WHAT’S AHEAD</Eyebrow>
         <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 21 }}>
           Real places and trip tools are ready for Gemini through your backend.
@@ -109,7 +119,7 @@ export default function ProfileScreen() {
           Full navigation is a future chapter.
         </Text>
         <Text style={{ color: colors.accent, fontSize: 12, fontWeight: "600" }}>
-          ROAM 0.3.0 · Your AI for the road.
+          ROAM 0.4.0 · Your AI for the road.
         </Text>
       </View>
     </Page>

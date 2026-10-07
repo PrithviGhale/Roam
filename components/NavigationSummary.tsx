@@ -9,7 +9,11 @@ import { router } from "expo-router";
 import { useRoam } from "../contexts/RoamProvider";
 import { useTheme } from "../themes/ThemeProvider";
 import { useRouteProgress } from "../hooks/useRouteProgress";
-import { formatArrival, formatDistance, formatDuration } from "../utils/format";
+import {
+  formatArrivalTime,
+  formatDistance,
+  formatDuration,
+} from "../utils/format";
 import { Button, Eyebrow, IconButton, Panel } from "./ui";
 import { SpeedDisplay } from "./SpeedDisplay";
 import { GoogleAttribution } from "./GoogleAttribution";
@@ -77,9 +81,11 @@ export function NavigationSummary({ compact = false }: { compact?: boolean }) {
           >
             <ActivityIndicator color={colors.accent} />
             <Text style={{ color: colors.muted, fontSize: 13 }}>
-              {trip.stops.length
-                ? "Calculating route with stops…"
-                : "Planning your driving route…"}
+              {tripState.tracking?.state === "rerouting"
+                ? "Finding a better route…"
+                : trip.stops.length
+                  ? "Calculating route with stops…"
+                  : "Planning your driving route…"}
             </Text>
           </View>
         ) : tripState.error ? (
@@ -110,22 +116,50 @@ export function NavigationSummary({ compact = false }: { compact?: boolean }) {
                 </Text>
                 <Text style={{ color: colors.muted, fontSize: 11 }}>
                   {formatDistance(progress.distanceMeters)} ·{" "}
-                  {formatArrival(
-                    progress.durationSeconds,
-                    progress.estimated
-                      ? Date.now()
-                      : Date.parse(trip.route!.calculatedAt),
-                  )}{" "}
-                  arrival
+                  {formatArrivalTime(progress.arrivalTime)} arrival
                 </Text>
               </View>
             </View>
+            {trip.startedAt && progress.progressAvailable && (
+              <View
+                accessibilityRole="progressbar"
+                accessibilityValue={{
+                  min: 0,
+                  max: 100,
+                  now: Math.round(progress.percentageCompleted),
+                }}
+                style={{ gap: 4 }}
+              >
+                <View
+                  style={{
+                    height: 4,
+                    borderRadius: 4,
+                    backgroundColor: colors.border,
+                    overflow: "hidden",
+                  }}
+                >
+                  <View
+                    style={{
+                      height: 4,
+                      width: `${progress.percentageCompleted}%`,
+                      backgroundColor: colors.accent,
+                    }}
+                  />
+                </View>
+                <Text style={{ color: colors.muted, fontSize: 10 }}>
+                  {Math.round(progress.percentageCompleted)}% of revised journey
+                  · {formatDistance(progress.completedMeters)} completed
+                </Text>
+              </View>
+            )}
             <Text style={{ color: colors.muted, fontSize: 10 }}>
               {progress.offRoute
-                ? "You may be off route. Refresh for a new route."
-                : progress.estimated
-                  ? "Estimated remaining · GPS progress, no live traffic refresh"
-                  : "Google driving estimate · No turn-by-turn guidance"}
+                ? "Checking route deviation…"
+                : trip.startedAt && !progress.progressAvailable
+                  ? "Progress unavailable · Waiting for accurate GPS"
+                  : progress.estimated
+                    ? "Estimated remaining · GPS progress, no live traffic refresh"
+                    : "Google driving estimate · No turn-by-turn guidance"}
             </Text>
           </>
         ) : (
@@ -145,6 +179,14 @@ export function NavigationSummary({ compact = false }: { compact?: boolean }) {
           </Pressable>
         )}
       </ScrollView>
+      {tripState.tracking?.error && (
+        <Text
+          accessibilityLiveRegion="polite"
+          style={{ color: colors.danger, fontSize: 11 }}
+        >
+          {tripState.tracking.error}
+        </Text>
+      )}
       {trip.destination.source === "verified" && (
         <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
           <View style={{ flex: 1 }}>

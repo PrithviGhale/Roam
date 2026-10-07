@@ -1,0 +1,13 @@
+// Conservative defaults. Constructors accept lower overrides for tests/private tuning.
+export const LIMITS = Object.freeze({
+  MAX_PLACE_RESULTS: 5,
+  MAX_VERIFIED_DETOUR_CANDIDATES: 3,
+  MAX_AI_HISTORY_MESSAGES: 12,
+  MAX_STOPS: 5,
+  DETOUR_CACHE_MS: 60_000,
+  DETOUR_CACHE_MOVEMENT_METERS: 150,
+  REROUTE_COOLDOWN_MS: 60_000,
+  OFF_ROUTE_CONFIRMATIONS: 3,
+  OFF_ROUTE_CONFIRM_MS: 6_000,
+  MAX_GPS_ACCURACY_METERS: 50,
+});

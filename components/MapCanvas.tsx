@@ -7,6 +7,7 @@ import { hasGoogleServices } from "../services/config";
 import { supportsGoogleMap } from "../services/mapCapability";
 import { Icon } from "./ui";
 import type { MapCanvasProps } from "./MapCanvas.types";
+import { useReducedMotion } from "../hooks/useReducedMotion";
 
 export function MapCanvas({
   coordinate,
@@ -14,27 +15,33 @@ export function MapCanvas({
   destination,
   recenterToken,
   bottomInset,
+  topInset = 120,
+  recommendation,
   route,
   stops,
 }: MapCanvasProps) {
   const { theme } = useTheme();
+  const reduced = useReducedMotion();
   const map = useRef<MapView>(null);
   const [ready, setReady] = useState(false);
   const [googleSupported] = useState(supportsGoogleMap);
   const google = hasGoogleServices && googleSupported;
   const hasCentered = useRef(false);
-  const latest = useRef({ coordinate, bottomInset });
-  latest.current = { coordinate, bottomInset };
+  const latest = useRef({ coordinate, bottomInset, topInset, reduced });
+  latest.current = { coordinate, bottomInset, topInset, reduced };
   useEffect(() => {
     if (!ready || !coordinate || hasCentered.current || route) return;
     hasCentered.current = true;
-    map.current?.animateToRegion(mapsService.regionFor(coordinate), 700);
+    map.current?.animateToRegion(
+      mapsService.regionFor(coordinate),
+      latest.current.reduced ? 0 : 240,
+    );
   }, [coordinate, ready, route]);
   useEffect(() => {
     if (ready && recenterToken > 0)
       map.current?.animateToRegion(
         mapsService.regionFor(latest.current.coordinate),
-        500,
+        latest.current.reduced ? 0 : 240,
       );
   }, [recenterToken, ready]);
   useEffect(() => {
@@ -47,9 +54,9 @@ export function MapCanvas({
     ];
     if (latest.current.coordinate) points.push(latest.current.coordinate);
     map.current?.fitToCoordinates(points, {
-      animated: true,
+      animated: !latest.current.reduced,
       edgePadding: {
-        top: 200,
+        top: latest.current.topInset,
         left: 40,
         right: 40,
         bottom: latest.current.bottomInset,
@@ -63,8 +70,13 @@ export function MapCanvas({
       ? [latest.current.coordinate, destination.coordinate]
       : [destination.coordinate];
     map.current?.fitToCoordinates(points, {
-      animated: true,
-      edgePadding: { top: 210, left: 55, right: 55, bottom: 200 },
+      animated: !latest.current.reduced,
+      edgePadding: {
+        top: latest.current.topInset,
+        left: 40,
+        right: 40,
+        bottom: latest.current.bottomInset,
+      },
     });
   }, [destination, ready]);
   if (hasGoogleServices && !googleSupported)
@@ -109,18 +121,18 @@ export function MapCanvas({
       showsUserLocation={false}
       showsMyLocationButton={false}
       toolbarEnabled={false}
-      mapPadding={{ top: 200, right: 15, bottom: bottomInset, left: 15 }}
+      mapPadding={{ top: topInset, right: 15, bottom: bottomInset, left: 15 }}
     >
       {google && route && (
         <>
           <Polyline
             coordinates={route.geometry}
-            strokeColor={theme.colors.onAccent}
+            strokeColor={theme.colors.background}
             strokeWidth={9}
           />
           <Polyline
             coordinates={route.geometry}
-            strokeColor={theme.colors.accent}
+            strokeColor={theme.colors.route}
             strokeWidth={5}
           />
         </>
@@ -138,7 +150,7 @@ export function MapCanvas({
             style={{
               width: 48,
               height: 48,
-              borderRadius: 24,
+              borderRadius: 12,
               backgroundColor: theme.colors.accentSoft,
               borderWidth: 1,
               borderColor: theme.colors.accent,
@@ -150,7 +162,7 @@ export function MapCanvas({
               style={{
                 width: 32,
                 height: 32,
-                borderRadius: 16,
+                borderRadius: 8,
                 backgroundColor: theme.colors.accent,
                 alignItems: "center",
                 justifyContent: "center",
@@ -175,7 +187,7 @@ export function MapCanvas({
             style={{
               width: 42,
               height: 42,
-              borderRadius: 14,
+              borderRadius: 8,
               backgroundColor: theme.colors.text,
               borderWidth: 2,
               borderColor: theme.colors.accent,
@@ -199,7 +211,7 @@ export function MapCanvas({
               style={{
                 width: 34,
                 height: 34,
-                borderRadius: 17,
+                borderRadius: 8,
                 backgroundColor: theme.colors.accent,
                 borderWidth: 2,
                 borderColor: theme.colors.background,
@@ -219,6 +231,32 @@ export function MapCanvas({
             </View>
           </Marker>
         ))}
+      {google && recommendation?.source === "verified" && (
+        <Marker
+          coordinate={recommendation.coordinate}
+          title={recommendation.name}
+          description="Recommended place"
+        >
+          <View
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 8,
+              borderWidth: 2,
+              borderColor: theme.colors.accent,
+              backgroundColor: theme.colors.surface,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Icon
+              name="sparkles-outline"
+              color={theme.colors.accent}
+              size={20}
+            />
+          </View>
+        </Marker>
+      )}
     </MapView>
   );
 }

@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useReducer, useState } from "react";
 import {
   Platform,
   Pressable,
-  StyleSheet,
+  ScrollView,
   Text,
   View,
   useWindowDimensions,
@@ -15,189 +15,232 @@ import { MapCanvas } from "../../components/MapCanvas";
 import { Brand } from "../../components/Brand";
 import { SearchBar } from "../../components/SearchBar";
 import { QuickActions } from "../../components/QuickActions";
-import { DrivingHUD } from "../../components/DrivingHUD";
 import { LocationNotice } from "../../components/LocationNotice";
 import { PlacesSheet } from "../../components/PlacesSheet";
 import { BottomSheet } from "../../components/BottomSheet";
 import { RoamAssistant } from "../../components/RoamAssistant";
-import { NavigationSummary } from "../../components/NavigationSummary";
-import { Icon, IconButton, Panel } from "../../components/ui";
-import { hasGoogleServices } from "../../services/config";
-import { supportsGoogleMap } from "../../services/mapCapability";
+import { DriveBar } from "../../components/DriveBar";
+import { RoamPulse, voiceLabels } from "../../components/RoamPulse";
+import { IconButton } from "../../components/ui";
+import { tripMode, phoneLayout, overlayReducer } from "../../design/layout";
+import { radius, space, type } from "../../design/tokens";
 import type { PlaceCategory, Place } from "../../types/domain";
-
 export default function MapScreen() {
-  const { theme, setTheme } = useTheme();
-  const { colors } = theme;
-  const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
-  const compact = height < 740;
   const {
-    coordinate,
-    heading,
-    destination,
-    selectDestination,
-    tripState,
-    fresh,
-    status,
-    retry,
-  } = useRoam();
-  const driving = Boolean(tripState.trip?.startedAt);
-  const { stopVoice } = useAssistant();
-  const [googleSupported] = useState(supportsGoogleMap);
+    theme: { colors },
+  } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const layout = phoneLayout(width, height);
+  const roam = useRoam();
+  const assistant = useAssistant();
+  const driving = tripMode(roam.tripState) === "driving";
   const [recenter, setRecenter] = useState(0);
-  const [bottomHeight, setBottomHeight] = useState(240);
-  const [placesOpen, setPlacesOpen] = useState(false);
-  const [category, setCategory] = useState<PlaceCategory | null>(null);
-  const [assistantOpen, setAssistantOpen] = useState(false);
-  const openPlaces = (next: PlaceCategory | null) => {
-    stopVoice();
-    setAssistantOpen(false);
-    setCategory(next);
-    setPlacesOpen(true);
+  const [bottomHeight, setBottomHeight] = useState(180);
+  const [topHeight, setTopHeight] = useState(120);
+  const [mapHeight, setMapHeight] = useState(height);
+  const [overlay, dispatch] = useReducer(overlayReducer, { kind: "closed" });
+  const openPlaces = (category: PlaceCategory | null) => {
+    assistant.stopVoice();
+    dispatch({ kind: "places", category });
   };
   const select = (place: Place) => {
-    void selectDestination(place);
-    setPlacesOpen(false);
+    void roam.selectDestination(place);
+    dispatch({ kind: "closed" });
   };
   return (
-    <View style={[styles.root, { backgroundColor: colors.background }]}>
+    <View
+      onLayout={(event) => setMapHeight(event.nativeEvent.layout.height)}
+      style={{ flex: 1, backgroundColor: colors.background }}
+    >
       <MapCanvas
-        coordinate={coordinate}
-        heading={heading}
-        destination={destination}
-        route={tripState.trip?.route ?? null}
-        stops={tripState.trip?.stops ?? []}
+        coordinate={roam.coordinate}
+        heading={roam.heading}
+        destination={roam.destination}
+        route={roam.tripState.trip?.route ?? null}
+        stops={roam.tripState.trip?.stops ?? []}
+        recommendation={
+          overlay.kind === "assistant"
+            ? assistant.messages.findLast((message) => message.places?.length)
+                ?.places?.[0]
+            : null
+        }
         recenterToken={recenter}
-        bottomInset={bottomHeight + 16}
+        bottomInset={bottomHeight + space.xl}
+        topInset={topHeight + space.md}
       />
       <View
         pointerEvents="box-none"
-        style={[styles.top, { paddingTop: insets.top + 10 }]}
-      >
-        <View style={styles.header}>
-          <Brand />
-          <View
-            style={[
-              styles.badge,
-              { backgroundColor: colors.surface, borderColor: colors.border },
-            ]}
-          >
-            <View
-              style={{
-                width: 5,
-                height: 5,
-                borderRadius: 3,
-                backgroundColor: colors.accent,
-              }}
-            />
-            <Text
-              style={{ color: colors.muted, fontSize: 9, letterSpacing: 1 }}
-            >
-              V0.4
-            </Text>
-          </View>
-          <View style={{ flex: 1 }} />
-          <IconButton
-            icon={theme.id === "dark" ? "sunny-outline" : "moon-outline"}
-            label="Switch map theme"
-            onPress={() => setTheme(theme.id === "dark" ? "light" : "dark")}
-          />
-        </View>
-        {!driving && (
-          <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
-            <SearchBar onPress={() => openPlaces(null)} />
-          </View>
-        )}
-        <QuickActions onSelect={openPlaces} />
-        {!compact && !driving && (
-          <View style={{ paddingHorizontal: 20, paddingTop: 10 }}>
-            <Panel style={{ padding: 10 }}>
-              <Text style={{ color: colors.muted, fontSize: 10 }}>
-                {Platform.OS === "web"
-                  ? "Browser UI preview · Native Google map runs on your phone."
-                  : !hasGoogleServices
-                    ? "Demo mode · Configure Google for real places and routes."
-                    : !googleSupported
-                      ? "Google map support is missing. Use a Google-enabled iOS development build to display routes."
-                      : "Google Places + Routes · Ready for your next destination."}
-              </Text>
-            </Panel>
-          </View>
-        )}
-      </View>
-      <View
-        pointerEvents="box-none"
-        style={styles.bottom}
-        onLayout={(event) => setBottomHeight(event.nativeEvent.layout.height)}
+        onLayout={(event) => setTopHeight(event.nativeEvent.layout.height)}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: insets.left,
+          right: insets.right,
+          paddingTop: insets.top + space.xs,
+          gap: space.sm,
+          paddingHorizontal: layout.gutter,
+        }}
       >
         <View
-          style={{ alignItems: "flex-end", marginBottom: compact ? 8 : 14 }}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
         >
+          <Brand />
+          <View
+            style={{
+              backgroundColor: colors.surface,
+              paddingHorizontal: space.sm,
+              paddingVertical: space.xs,
+              borderRadius: radius.sm,
+            }}
+          >
+            <Text
+              style={{
+                ...type.label,
+                color: driving ? colors.accent : colors.muted,
+              }}
+            >
+              {driving ? "DRIVE" : "PLAN"}
+            </Text>
+          </View>
+        </View>
+        {!driving && <SearchBar onPress={() => openPlaces(null)} />}
+      </View>
+      <ScrollView
+        pointerEvents="box-none"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ gap: space.sm }}
+        onLayout={(event) => setBottomHeight(event.nativeEvent.layout.height)}
+        style={{
+          maxHeight: Math.max(120, mapHeight - topHeight - space.xl),
+          position: "absolute",
+          bottom: space.md,
+          left: insets.left + layout.gutter,
+          right: insets.right + layout.gutter,
+        }}
+      >
+        <View
+          pointerEvents="box-none"
+          style={{
+            flexDirection: "row",
+            alignItems: "flex-end",
+            justifyContent: "space-between",
+          }}
+        >
+          {driving ? (
+            <View
+              accessible
+              accessibilityLabel={
+                roam.speedMph === null
+                  ? "GPS speed unavailable"
+                  : `GPS speed approximately ${Math.round(roam.speedMph)} miles per hour`
+              }
+              style={{
+                backgroundColor: colors.surface,
+                borderRadius: radius.md,
+                padding: space.sm,
+                minWidth: 72,
+              }}
+            >
+              <Text style={{ ...type.metric, color: colors.text }}>
+                {roam.speedMph === null ? "—" : Math.round(roam.speedMph)}
+              </Text>
+              <Text style={{ ...type.label, color: colors.muted }}>
+                GPS MPH
+              </Text>
+            </View>
+          ) : (
+            <View />
+          )}
           <IconButton
             icon="locate-outline"
             label="Recenter map on your location"
             onPress={() => {
-              if (status === "denied" || status === "unavailable") retry();
+              if (roam.status === "denied" || roam.status === "unavailable")
+                roam.retry();
               setRecenter((value) => value + 1);
             }}
           />
         </View>
-        {tripState.trip ? (
-          <NavigationSummary compact={compact} />
-        ) : Platform.OS !== "web" && (status !== "ready" || !fresh) ? (
+        {roam.tripState.trip ? (
+          <DriveBar planning={!driving} />
+        ) : Platform.OS !== "web" &&
+          (roam.status !== "ready" || !roam.fresh) ? (
           <LocationNotice />
-        ) : (
-          <DrivingHUD />
-        )}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Ask ROAM assistant"
-          onPress={() => setAssistantOpen(true)}
-          style={({ pressed }) => [
-            styles.ask,
-            { backgroundColor: colors.accent, opacity: pressed ? 0.8 : 1 },
-            compact && { minHeight: 54 },
-          ]}
+        ) : null}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: colors.surface,
+            borderRadius: radius.lg,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
         >
-          <View style={[styles.mic, { borderColor: colors.onAccent + "30" }]}>
-            <Icon name="mic-outline" color={colors.onAccent} size={22} />
-          </View>
-          <View style={{ flex: 1, gap: 3 }}>
-            <Text
-              style={{
-                color: colors.onAccent,
-                fontSize: 17,
-                fontWeight: "700",
-              }}
-            >
-              Ask ROAM
-            </Text>
-            {!compact && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Open ROAM assistant, ${voiceLabels[assistant.voicePhase]}`}
+            onPress={() => dispatch({ kind: "assistant" })}
+            style={{
+              flex: 1,
+              minHeight: 60,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: space.sm,
+              padding: space.sm,
+            }}
+          >
+            <RoamPulse phase={assistant.voicePhase} size={36} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ ...type.heading, color: colors.text }}>ROAM</Text>
               <Text
-                style={{ color: colors.onAccent, fontSize: 10, opacity: 0.75 }}
+                accessibilityLiveRegion="polite"
+                style={{ ...type.small, color: colors.muted }}
               >
-                A little help. A better journey.
+                {assistant.voice.followUp
+                  ? "Your answer · listening"
+                  : (assistant.voiceNotice ??
+                    voiceLabels[assistant.voicePhase])}
               </Text>
-            )}
-          </View>
-          <Icon name="sparkles-outline" color={colors.onAccent} size={22} />
-        </Pressable>
-      </View>
+            </View>
+          </Pressable>
+          <IconButton
+            style={{ marginRight: space.xs }}
+            icon={
+              assistant.state === "speaking" || assistant.state === "listening"
+                ? "stop-outline"
+                : "mic-outline"
+            }
+            label={
+              assistant.state === "speaking" || assistant.state === "listening"
+                ? "Stop voice conversation"
+                : "Speak to ROAM"
+            }
+            active={assistant.state === "listening"}
+            onPress={assistant.toggleVoice}
+          />
+        </View>
+        {!driving && <QuickActions onSelect={openPlaces} />}
+      </ScrollView>
       <PlacesSheet
-        visible={placesOpen}
-        category={category}
-        onClose={() => setPlacesOpen(false)}
+        visible={overlay.kind === "places"}
+        category={overlay.kind === "places" ? overlay.category : null}
+        onClose={() => dispatch({ kind: "closed" })}
         onSelect={select}
       />
       <BottomSheet
-        visible={assistantOpen}
+        visible={overlay.kind === "assistant"}
         onClose={() => {
-          stopVoice();
-          setAssistantOpen(false);
+          assistant.stopVoice();
+          dispatch({ kind: "closed" });
         }}
-        title="Ask ROAM"
-        subtitle="Your co-pilot. Wherever the road goes."
+        title="ROAM"
+        subtitle="A little help along the way."
         tall
       >
         <RoamAssistant onPlaces={openPlaces} />
@@ -205,41 +248,3 @@ export default function MapScreen() {
     </View>
   );
 }
-const styles = StyleSheet.create({
-  root: { flex: 1 },
-  top: { position: "absolute", left: 0, right: 0, top: 0 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    gap: 10,
-    paddingBottom: 16,
-  },
-  badge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 7,
-    paddingVertical: 5,
-  },
-  bottom: { position: "absolute", left: 20, right: 20, bottom: 16 },
-  ask: {
-    minHeight: 68,
-    borderRadius: 23,
-    paddingHorizontal: 17,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 13,
-    marginTop: 12,
-  },
-  mic: {
-    width: 38,
-    height: 38,
-    borderRadius: 13,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});

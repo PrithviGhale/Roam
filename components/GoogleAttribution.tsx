@@ -39,7 +39,7 @@ export function GoogleAttribution({
             if (provider.uri?.startsWith("https://"))
               void Linking.openURL(provider.uri).catch(() => {});
           }}
-          style={{ minHeight: 24 }}
+          style={{ minHeight: 44, justifyContent: "center" }}
         >
           <Text style={{ color: theme.colors.muted, fontSize: 11 }}>
             {provider.provider}

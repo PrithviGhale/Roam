@@ -5,6 +5,8 @@ export interface MapCanvasProps {
   destination: Place | null;
   recenterToken: number;
   bottomInset: number;
+  topInset?: number;
+  recommendation?: Place | null;
   route: Route | null;
   stops: TripStop[];
 }

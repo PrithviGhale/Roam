@@ -1,9 +1,9 @@
-import { ScrollView, Text, View, type ViewStyle } from "react-native";
+import { ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../themes/ThemeProvider";
-import { Brand } from "./Brand";
+import { space, type } from "../design/tokens";
+import { phoneLayout } from "../design/layout";
 import type { PropsWithChildren } from "react";
-
 export function Page({
   title,
   subtitle,
@@ -13,29 +13,26 @@ export function Page({
   const {
     theme: { colors },
   } = useTheme();
-  const style: ViewStyle = {
-    padding: 22,
-    gap: 23,
-    ...(scroll ? {} : { flex: 1 }),
+  const { width, height } = useWindowDimensions();
+  const layout = phoneLayout(width, height);
+  const style = {
+    width: "100%" as const,
+    maxWidth: layout.contentMax,
+    alignSelf: "center" as const,
+    padding: layout.gutter,
+    gap: space.lg,
+    ...(scroll ? {} : { flex: 1, minHeight: 0 }),
   };
   const content = (
     <>
-      <Brand />
-      <View style={{ gap: 9, marginTop: 10 }}>
+      <View style={{ gap: space.xxs }}>
         <Text
           accessibilityRole="header"
-          style={{
-            color: colors.text,
-            fontSize: 32,
-            fontWeight: "700",
-            letterSpacing: -0.8,
-          }}
+          style={{ ...type.title, color: colors.text }}
         >
           {title}
         </Text>
-        <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 22 }}>
-          {subtitle}
-        </Text>
+        <Text style={{ ...type.small, color: colors.muted }}>{subtitle}</Text>
       </View>
       {children}
     </>
@@ -46,7 +43,13 @@ export function Page({
       style={{ flex: 1, backgroundColor: colors.background }}
     >
       {scroll ? (
-        <ScrollView contentContainerStyle={style}>{content}</ScrollView>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          contentContainerStyle={[style, { paddingBottom: space.xxl }]}
+        >
+          {content}
+        </ScrollView>
       ) : (
         <View style={style}>{content}</View>
       )}

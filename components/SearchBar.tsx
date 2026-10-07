@@ -1,6 +1,7 @@
 import { Pressable, Text, View } from "react-native";
 import { useTheme } from "../themes/ThemeProvider";
 import { Icon } from "./ui";
+import { radius, space, type } from "../design/tokens";
 
 export function SearchBar({ onPress }: { onPress: () => void }) {
   const {
@@ -15,9 +16,9 @@ export function SearchBar({ onPress }: { onPress: () => void }) {
         backgroundColor: colors.surface,
         borderColor: colors.border,
         borderWidth: 1,
-        borderRadius: 21,
-        paddingHorizontal: 18,
-        minHeight: 66,
+        borderRadius: radius.md,
+        paddingHorizontal: space.md,
+        minHeight: 52,
         flexDirection: "row",
         alignItems: "center",
         gap: 13,
@@ -26,11 +27,8 @@ export function SearchBar({ onPress }: { onPress: () => void }) {
     >
       <Icon name="search-outline" color={colors.accent} size={22} />
       <View style={{ flex: 1, gap: 4 }}>
-        <Text style={{ color: colors.text, fontWeight: "600", fontSize: 16 }}>
-          Where are you going?
-        </Text>
-        <Text style={{ color: colors.muted, fontSize: 11 }}>
-          A new destination. A new story.
+        <Text style={{ ...type.body, color: colors.text, fontWeight: "600" }}>
+          Where to next?
         </Text>
       </View>
       <Icon name="arrow-forward-outline" size={19} color={colors.muted} />

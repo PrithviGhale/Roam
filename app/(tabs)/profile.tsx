@@ -1,127 +1,180 @@
-import { Pressable, Text, View } from "react-native";
-import { Page } from "../../components/Page";
-import { Eyebrow, Icon, Panel, Button } from "../../components/ui";
-import { useTheme } from "../../themes/ThemeProvider";
-import { useRoam } from "../../contexts/RoamProvider";
+import { Pressable, Switch, Text, View } from "react-native";
 import { router } from "expo-router";
-
+import { Page } from "../../components/Page";
+import { Button, Eyebrow, Panel } from "../../components/ui";
+import { useTheme } from "../../themes/ThemeProvider";
+import { useAssistant } from "../../contexts/AssistantProvider";
+import { LocationNotice } from "../../components/LocationNotice";
+import { space, radius, type } from "../../design/tokens";
+import { wakeRequirement } from "../../services/voice/types";
+function Setting({
+  title,
+  detail,
+  value,
+  change,
+}: {
+  title: string;
+  detail?: string;
+  value: boolean;
+  change(value: boolean): void;
+}) {
+  const {
+    theme: { colors },
+  } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={title}
+      accessibilityState={{ checked: value }}
+      onPress={() => change(!value)}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: space.md,
+        minHeight: 52,
+      }}
+    >
+      <View style={{ flex: 1, gap: space.xxs }}>
+        <Text style={{ ...type.body, color: colors.text }}>{title}</Text>
+        {detail && (
+          <Text style={{ ...type.small, color: colors.muted }}>{detail}</Text>
+        )}
+      </View>
+      <Switch
+        accessible={false}
+        pointerEvents="none"
+        value={value}
+        onValueChange={change}
+        trackColor={{ false: colors.border, true: colors.accent }}
+        thumbColor={value ? colors.onAccent : colors.muted}
+      />
+    </Pressable>
+  );
+}
 export default function ProfileScreen() {
   const { theme, setTheme } = useTheme();
   const { colors } = theme;
-  const { status, canAskAgain, retry, fresh } = useRoam();
+  const assistant = useAssistant();
+  const { settings, updateVoiceSettings } = assistant;
   return (
     <Page
-      title="Make it your road."
-      subtitle="A little personality for every journey."
+      title="Make ROAM yours"
+      subtitle="A calm companion. Set your preferences."
     >
-      <Panel style={{ flexDirection: "row", alignItems: "center", gap: 15 }}>
+      <View style={{ gap: space.sm }}>
+        <Eyebrow>APPEARANCE</Eyebrow>
         <View
-          style={{
-            width: 55,
-            height: 55,
-            borderRadius: 20,
-            backgroundColor: colors.accentSoft,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
+          accessibilityRole="radiogroup"
+          style={{ flexDirection: "row", gap: space.xs }}
         >
-          <Icon name="person-outline" color={colors.accent} size={25} />
-        </View>
-        <View style={{ gap: 6 }}>
-          <Text style={{ color: colors.text, fontWeight: "600", fontSize: 18 }}>
-            Hello, explorer.
-          </Text>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Local prototype · No account needed
-          </Text>
-        </View>
-      </Panel>
-      <View style={{ gap: 13 }}>
-        <Eyebrow>MAP PERSONALITY</Eyebrow>
-        {(["dark", "light"] as const).map((id) => (
-          <Pressable
-            key={id}
-            accessibilityRole="radio"
-            accessibilityState={{ checked: theme.id === id }}
-            onPress={() => setTheme(id)}
-            style={{
-              backgroundColor: colors.surface,
-              borderWidth: 1,
-              borderColor: theme.id === id ? colors.accent : colors.border,
-              borderRadius: 20,
-              padding: 18,
-              minHeight: 82,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 14,
-            }}
-          >
-            <Icon
-              name={id === "dark" ? "moon-outline" : "sunny-outline"}
-              color={colors.accent}
-            />
-            <View style={{ flex: 1, gap: 5 }}>
+          {(["dark", "light"] as const).map((id) => (
+            <Pressable
+              key={id}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: theme.id === id }}
+              onPress={() => setTheme(id)}
+              style={{
+                flex: 1,
+                minHeight: 52,
+                justifyContent: "center",
+                alignItems: "center",
+                backgroundColor:
+                  theme.id === id ? colors.selected : colors.surface,
+                borderWidth: 1,
+                borderColor: theme.id === id ? colors.accent : colors.border,
+                borderRadius: radius.md,
+              }}
+            >
               <Text
-                style={{ color: colors.text, fontSize: 16, fontWeight: "600" }}
+                style={{
+                  ...type.body,
+                  color: theme.id === id ? colors.accent : colors.text,
+                }}
               >
-                ROAM {id === "dark" ? "Dark" : "Light"}
+                {id === "dark" ? "Dark" : "Light"}
               </Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {id === "dark"
-                  ? "Graphite. Calm. After-hours."
-                  : "Fresh. Clear. Open skies."}
-              </Text>
-            </View>
-            {theme.id === id && (
-              <Icon name="checkmark-circle" color={colors.accent} />
-            )}
-          </Pressable>
-        ))}
+            </Pressable>
+          ))}
+        </View>
       </View>
-      <Panel style={{ gap: 13 }}>
-        <Eyebrow>LOCATION</Eyebrow>
-        <Text style={{ color: colors.text, fontSize: 15, fontWeight: "600" }}>
-          {status === "ready" && fresh
-            ? "Connected to your GPS"
-            : status === "denied"
-              ? "Location access is off"
-              : "Waiting for location"}
+      <View style={{ gap: space.sm }}>
+        <Eyebrow>VOICE</Eyebrow>
+        <Panel style={{ gap: space.md }}>
+          <Setting
+            title="Hey ROAM"
+            detail="When enabled during an active trip, ROAM listens locally for the wake phrase."
+            value={settings.heyRoam}
+            change={(heyRoam) => updateVoiceSettings({ heyRoam })}
+          />
+          {wakeRequirement(assistant.wakeAvailability) && (
+            <Text style={{ ...type.small, color: colors.muted }}>
+              {wakeRequirement(assistant.wakeAvailability)}
+            </Text>
+          )}
+          <Setting
+            title="Automatic spoken replies"
+            value={settings.autoSpeak}
+            change={(autoSpeak) => updateVoiceSettings({ autoSpeak })}
+          />
+          <Setting
+            title="Short replies while driving"
+            value={settings.shortReplies}
+            change={(shortReplies) => updateVoiceSettings({ shortReplies })}
+          />
+          <Setting
+            title="Softer voice volume"
+            detail="Uses 65% of your device’s current speech volume."
+            value={settings.volume === "softer"}
+            change={(value) =>
+              updateVoiceSettings({ volume: value ? "softer" : "system" })
+            }
+          />
+        </Panel>
+      </View>
+      <View style={{ gap: space.sm }}>
+        <Eyebrow>UNITS</Eyebrow>
+        <Text style={{ ...type.body, color: colors.text }}>
+          Miles · GPS miles per hour
         </Text>
-        <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 20 }}>
-          ROAM uses location while the app is open. Google receives location
-          when you request places or routes. When Gemini is configured, your
-          message and a compact trip summary go through the ROAM backend to
-          Google AI. No GPS history or route polyline is sent to Gemini. There
-          is no long-term app conversation or location-history storage.
+        <Text style={{ ...type.small, color: colors.muted }}>
+          US units in this version. Phone GPS speed is an estimate.
         </Text>
-        {(status !== "ready" || !fresh) && (
-          <Button secondary onPress={retry}>
-            {status === "denied" && !canAskAgain
-              ? "Open Settings"
-              : "Retry location"}
-          </Button>
-        )}
-      </Panel>
-      <View style={{ gap: 10 }}>
-        {__DEV__ && (
-          <Button
-            secondary
-            icon="construct-outline"
-            onPress={() => router.push("/diagnostics")}
-          >
+      </View>
+      <LocationNotice />
+      <View style={{ gap: space.sm }}>
+        <Eyebrow>PRIVACY</Eyebrow>
+        <Text style={{ ...type.body, color: colors.muted }}>
+          Hey ROAM processes wake audio on your device, only while the app is
+          open during a trip. Command recognition begins after activation or a
+          microphone tap; Apple’s speech service may process that audio
+          remotely. ROAM does not save recordings.
+        </Text>
+        <Text style={{ ...type.small, color: colors.muted }}>
+          Messages and a compact trip summary go to the configured ROAM backend
+          and Gemini. Google receives location for places and routes. No
+          location history or conversations are saved between sessions.
+          Preferences are stored locally.
+        </Text>
+        <Text style={{ ...type.small, color: colors.muted }}>
+          Wake detection pauses during spoken replies. Tap the microphone to
+          stop playback. A short listening window opens after a verified
+          confirmation question.
+        </Text>
+      </View>
+      {__DEV__ && (
+        <View style={{ gap: space.xs }}>
+          <Eyebrow>DEVELOPMENT</Eyebrow>
+          <Button secondary onPress={() => router.push("/diagnostics")}>
             Device diagnostics
           </Button>
-        )}
-        <Eyebrow>BUILT FOR WHAT’S AHEAD</Eyebrow>
-        <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 21 }}>
-          Real places and trip tools are ready for Gemini through your backend.
-          Push-to-talk needs a development build; text input works in Expo Go.
-          Full navigation is a future chapter.
-        </Text>
-        <Text style={{ color: colors.accent, fontSize: 12, fontWeight: "600" }}>
-          ROAM 0.4.0 · Your AI for the road.
-        </Text>
-      </View>
+          <Button secondary onPress={() => router.push("/design-review")}>
+            Interface review states
+          </Button>
+        </View>
+      )}
+      <Text style={{ ...type.small, color: colors.muted }}>
+        ROAM 0.5.0 · Your AI for the road.
+      </Text>
     </Page>
   );
 }

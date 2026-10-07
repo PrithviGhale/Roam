@@ -16,6 +16,8 @@ server/build/
 .DS_Store
 ios/
 android/
-*.ppn
 *.p12
 *.mobileprovision
+*.ppn
+# The local model is a build resource, never a Git-tracked credential.
+!assets/wake/hey-roam_ios.ppn

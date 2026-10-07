@@ -14,6 +14,11 @@ export interface RoamTheme {
     onAccent: string;
     accentSoft: string;
     danger: string;
+    warning: string;
+    success: string;
+    route: string;
+    selected: string;
+    listening: string;
     scrim: string;
     mapLand: string;
     mapRoad: string;

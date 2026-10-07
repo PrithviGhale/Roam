@@ -1,156 +1,171 @@
+import { useState } from "react";
 import { router } from "expo-router";
 import { Text, View } from "react-native";
 import { Page } from "../../components/Page";
-import { Button, Eyebrow, Icon, IconButton, Panel } from "../../components/ui";
-import { NavigationSummary } from "../../components/NavigationSummary";
+import { DriveBar } from "../../components/DriveBar";
+import { Button, Eyebrow, IconButton } from "../../components/ui";
 import { GoogleAttribution } from "../../components/GoogleAttribution";
+import { StatusCard } from "../../components/StatusCard";
 import { useTheme } from "../../themes/ThemeProvider";
 import { useRoam } from "../../contexts/RoamProvider";
-
+import { space, radius, type } from "../../design/tokens";
 export default function TripsScreen() {
   const {
     theme: { colors },
   } = useTheme();
-  const { tripState, removeTripStop, cancelTrip, markStopVisited } = useRoam();
+  const { tripState, removeTripStop, cancelTrip, markStopVisited, retryRoute } =
+    useRoam();
   const trip = tripState.trip;
+  const [busy, setBusy] = useState(false);
+  const blocked = busy || tripState.status === "loading";
+  const perform = async (action: () => void | Promise<unknown>) => {
+    if (blocked) return;
+    setBusy(true);
+    try {
+      await action();
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <Page
-      title={trip ? "Your next chapter." : "Every road has a story."}
+      title="Your journey"
       subtitle={
         trip
-          ? "Your destination, route, and stops. All in one place."
-          : "Your journeys will live here. Let’s start with somewhere new."
+          ? "One route. Room for a few good stops."
+          : "Choose somewhere worth going."
       }
     >
       {trip ? (
         <>
-          <NavigationSummary />
+          <Eyebrow>{trip.startedAt ? "CURRENT TRIP" : "PLANNED ROUTE"}</Eyebrow>
+          <DriveBar planning={!trip.startedAt} />
           <Button
             secondary
             icon="map-outline"
             onPress={() => router.navigate("/")}
           >
-            View route on map
+            View route
           </Button>
-          <View style={{ gap: 12 }}>
-            <Eyebrow>STOPS IN ORDER · {trip.stops.length} / 5</Eyebrow>
+          <View style={{ gap: space.md }}>
+            <Eyebrow>STOPS · {trip.stops.length} / 5</Eyebrow>
             {!trip.stops.length && (
-              <Text
-                style={{ color: colors.muted, fontSize: 13, lineHeight: 21 }}
-              >
-                Tap Food, Gas, Restroom, Coffee, or Parking on the map, then
-                choose a place and add it as a stop.
+              <Text style={{ ...type.body, color: colors.muted }}>
+                Ask ROAM for a stop, or explore the categories on the map.
               </Text>
             )}
             {trip.stops.map((stop, index) => (
-              <Panel
+              <View
                 key={stop.id}
-                style={{ flexDirection: "row", gap: 12, alignItems: "center" }}
+                style={{ flexDirection: "row", gap: space.sm }}
               >
-                <View
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 16,
-                    backgroundColor: colors.accentSoft,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Text style={{ color: colors.accent, fontWeight: "700" }}>
-                    {index + 1}
-                  </Text>
-                </View>
-                <View style={{ flex: 1, gap: 6 }}>
-                  <Text
+                <View style={{ alignItems: "center" }}>
+                  <View
                     style={{
-                      color: colors.text,
-                      fontSize: 15,
-                      fontWeight: "600",
+                      width: 32,
+                      height: 32,
+                      borderRadius: radius.sm,
+                      backgroundColor: colors.accentSoft,
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
                   >
-                    {stop.place.name}
-                  </Text>
-                  {stop.visited && (
-                    <Text style={{ color: colors.accent, fontSize: 11 }}>
-                      Visited · skipped on refresh
+                    <Text style={{ ...type.small, color: colors.accent }}>
+                      {stop.visited ? "✓" : index + 1}
                     </Text>
-                  )}
-                  {trip.startedAt && !stop.visited && (
-                    <Button
-                      secondary
-                      disabled={tripState.status === "loading"}
-                      onPress={() => markStopVisited(stop.id)}
-                    >
-                      Mark visited
-                    </Button>
-                  )}
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>
-                    {stop.place.address ?? stop.place.subtitle}
-                  </Text>
-                </View>
-                <View
-                  style={{ opacity: tripState.status === "loading" ? 0.4 : 1 }}
-                >
-                  <IconButton
-                    icon="remove-circle-outline"
-                    label={`Remove ${stop.place.name} from trip`}
-                    onPress={() => {
-                      if (tripState.status !== "loading")
-                        void removeTripStop(stop.id);
+                  </View>
+                  <View
+                    style={{
+                      width: 1,
+                      flex: 1,
+                      minHeight: space.xl,
+                      backgroundColor: colors.border,
                     }}
                   />
                 </View>
-              </Panel>
+                <View
+                  style={{
+                    flex: 1,
+                    gap: space.xs,
+                    paddingBottom: space.md,
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.border,
+                  }}
+                >
+                  <Text style={{ ...type.heading, color: colors.text }}>
+                    {stop.place.name}
+                  </Text>
+                  <Text style={{ ...type.small, color: colors.muted }}>
+                    {stop.place.address ?? stop.place.subtitle}
+                  </Text>
+                  {stop.visited ? (
+                    <Text style={{ ...type.small, color: colors.success }}>
+                      Visited
+                    </Text>
+                  ) : (
+                    trip.startedAt && (
+                      <Button
+                        secondary
+                        disabled={blocked}
+                        onPress={() =>
+                          void perform(() => markStopVisited(stop.id))
+                        }
+                      >
+                        Mark visited
+                      </Button>
+                    )
+                  )}
+                </View>
+                <IconButton
+                  disabled={blocked}
+                  icon="remove-outline"
+                  label={`Remove ${stop.place.name} from trip`}
+                  onPress={() => void perform(() => removeTripStop(stop.id))}
+                />
+              </View>
             ))}
-            {trip.stops.length > 0 && (
-              <GoogleAttribution
-                places={trip.stops.map((stop) => stop.place)}
-              />
-            )}
           </View>
-          <Button secondary icon="close-outline" onPress={cancelTrip}>
-            {trip.startedAt ? "End Trip" : "Cancel Route"}
+          <View style={{ gap: space.xs }}>
+            <Eyebrow>DESTINATION</Eyebrow>
+            <Text style={{ ...type.heading, color: colors.text }}>
+              {trip.destination.name}
+            </Text>
+            <Text style={{ ...type.body, color: colors.muted }}>
+              {trip.destination.address ?? trip.destination.subtitle}
+            </Text>
+          </View>
+          <GoogleAttribution
+            compact
+            places={[trip.destination, ...trip.stops.map((stop) => stop.place)]}
+          />
+          <Button
+            secondary
+            disabled={blocked}
+            icon="refresh-outline"
+            onPress={retryRoute}
+          >
+            Refresh route
           </Button>
-          <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 18 }}>
-            Stops are visited in the order added. Route recalculation uses your
-            current GPS position. Three accurate fixes within 40 m mark the next
-            stop visited. If GPS missed a stop, mark it visited here before
-            refreshing. Visited stops are skipped.
+          <Button
+            secondary
+            disabled={blocked}
+            icon="close-outline"
+            onPress={cancelTrip}
+          >
+            {trip.startedAt ? "End trip" : "Cancel route"}
+          </Button>
+          <Text style={{ ...type.small, color: colors.muted }}>
+            Visited stops are skipped on the next route update. Your journey
+            stays on this device for this session.
           </Text>
         </>
       ) : (
-        <Panel style={{ alignItems: "center", paddingVertical: 35, gap: 19 }}>
-          <View
-            style={{
-              width: 75,
-              height: 75,
-              borderRadius: 25,
-              backgroundColor: colors.accentSoft,
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <Icon name="trail-sign-outline" size={32} color={colors.accent} />
-          </View>
-          <Text style={{ color: colors.text, fontSize: 20, fontWeight: "600" }}>
-            A fresh start
-          </Text>
-          <Text
-            style={{
-              color: colors.muted,
-              fontSize: 13,
-              lineHeight: 21,
-              textAlign: "center",
-            }}
-          >
-            Choose a destination and plan your first route. Long-term trip
-            history and saved places are coming in a future version.
-          </Text>
-          <Button icon="map-outline" onPress={() => router.navigate("/")}>
-            Explore the map
-          </Button>
-        </Panel>
+        <StatusCard
+          title="Your next journey starts here"
+          detail="Choose a destination on the map. Add stops as you go."
+          action="Open map"
+          onPress={() => router.navigate("/")}
+        />
       )}
     </Page>
   );

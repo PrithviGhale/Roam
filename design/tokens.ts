@@ -1,0 +1,90 @@
+import type { TextStyle } from "react-native";
+export const space = {
+  xxs: 4,
+  xs: 8,
+  sm: 12,
+  md: 16,
+  lg: 20,
+  xl: 24,
+  xxl: 32,
+  huge: 40,
+} as const;
+export const radius = { sm: 8, md: 12, lg: 20, xl: 28, pill: 999 } as const;
+export const type = {
+  display: {
+    fontSize: 32,
+    lineHeight: 38,
+    fontWeight: "700",
+    letterSpacing: -1,
+  } as TextStyle,
+  title: {
+    fontSize: 23,
+    lineHeight: 29,
+    fontWeight: "700",
+    letterSpacing: -0.5,
+  } as TextStyle,
+  heading: { fontSize: 17, lineHeight: 23, fontWeight: "600" } as TextStyle,
+  body: { fontSize: 15, lineHeight: 22 } as TextStyle,
+  small: { fontSize: 13, lineHeight: 19 } as TextStyle,
+  label: {
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: "600",
+    letterSpacing: 1.5,
+  } as TextStyle,
+  metric: {
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: "600",
+    fontVariant: ["tabular-nums"],
+  } as TextStyle,
+} as const;
+export const motion = { quick: 160, settle: 240, pulse: 1400 } as const;
+export const elevation = { flat: 0, chrome: 2 } as const;
+export const touch = { min: 44, primary: 52 } as const;
+export const palettes = {
+  dark: {
+    background: "#0C1216",
+    surface: "#151D23",
+    elevated: "#202A32",
+    border: "#34414A",
+    text: "#F6F4EF",
+    muted: "#ABB7BF",
+    accent: "#E8BA77",
+    onAccent: "#211A11",
+    accentSoft: "#332A20",
+    danger: "#FFB1A6",
+    warning: "#F1CB8C",
+    success: "#A7D5B7",
+    route: "#E8BA77",
+    selected: "#332A20",
+    listening: "#F6CF97",
+    scrim: "#05090DBB",
+    mapLand: "#182128",
+    mapRoad: "#3C4851",
+    mapWater: "#102D38",
+    mapPark: "#263B34",
+  },
+  light: {
+    background: "#F5F3EF",
+    surface: "#FFFFFF",
+    elevated: "#EDE9E1",
+    border: "#CDC8BE",
+    text: "#1B252D",
+    muted: "#59666F",
+    accent: "#85581F",
+    onAccent: "#FFFFFF",
+    accentSoft: "#F0E5D5",
+    danger: "#A1352A",
+    warning: "#85581F",
+    success: "#286445",
+    route: "#A46D29",
+    selected: "#F0E5D5",
+    listening: "#85581F",
+    scrim: "#111A2580",
+    mapLand: "#ECE9E2",
+    mapRoad: "#FFFFFF",
+    mapWater: "#C5DAE1",
+    mapPark: "#DCE5D7",
+  },
+} as const;

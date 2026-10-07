@@ -103,7 +103,7 @@ export function MapCanvas({ destination }: MapCanvasProps) {
           fontSize: 11,
         }}
       >
-        FLATIRON
+        MAP PREVIEW
       </Text>
       <Text
         style={{
@@ -115,7 +115,7 @@ export function MapCanvas({ destination }: MapCanvasProps) {
           fontSize: 11,
         }}
       >
-        CHELSEA
+        ILLUSTRATION · NO LIVE MAP
       </Text>
       <View
         style={{

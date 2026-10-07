@@ -1,10 +1,10 @@
-# Physical iPhone verification · V0.4
+# Physical iPhone verification · V0.5
 
 **Not yet executed on a physical iPhone.** Record device/iOS, app build, backend version/model and sanitized failures. Test while parked; movement tests need a passenger operating the phone or a controlled route. Never paste keys/GPS traces into logs/issues.
 
 ## Build, permissions and GPS
 
-- Install a compatible SDK 54 Expo Go or signed ROAM development build. Verify no-config fictional demo and configured failures without fabricated routes/results.
+- Install a compatible SDK 57 Expo Go or signed ROAM development build. Verify no-config fictional demo and configured failures without fabricated routes/results.
 - Development build: restricted iOS Maps SDK key, bundle `com.prithvighale.roam`, speech module/permissions and foreground location. Native keys/modules require rebuild.
 - Profile → Diagnostics: read permissions; verify live latitude/longitude, timestamp, accuracy, speed, heading and freshness. Compare speed/heading while stationary and moving. Deny permissions, disable location, retry/Settings, background/resume. Confirm no background watcher/audio.
 - Expo Go microphone fallback must explain development-build requirement once tapped; text/TTS remain usable. Production build must hide diagnostics and redirect direct navigation to the route.
@@ -40,6 +40,15 @@
 - “What's my ETA?”, “What time will I get there?”, “When do we arrive?”, “How much longer?”: compare current duration/arrival/progress and estimate labels. Explicit “refresh my route” recalculates once; no accidental reroutes from search/questions.
 - Started-trip responses should be short with one top suggestion; no automatic long spoken lists. Add/remove/cancel still require authorization. Normal map buttons work if Gemini is unavailable.
 - Diagnostics recognition: read/grant/deny microphone and speech permissions, start/stop, transcript/confidence if provided, twenty-second cap, no submission to Gemini. Test TTS voices/audible playback/stop and iPhone silent/audio-route behavior.
-- Assistant recognition: transcript sends once; concise spoken response, interrupt with mic/Stop; background/dismiss stops everything. Test Siri/call/audio interruption, network recognition failure and permission dialogs dismissed while leaving the screen. No recordings persisted or wake word.
+- Assistant recognition: only a final transcript sends once; twelve-second capture, concise spoken response, stop with microphone; background/dismiss stops command/TTS. Test call/audio interruption, failed recognition and permission prompts completed after leaving the app. No persisted recordings. Enabled wake can resume after conversation dismissal while a foreground trip remains active.
+
+## V0.5 Hey ROAM and interface
+
+- Complete [model/key/license setup](v05-voice.md). Enable during a verified active foreground trip; confirm local-listening Pulse and iOS microphone indicator. No wake capture when off, no trip or backgrounded.
+- Say Hey ROAM, then request a real stop with a detour bound. Verify recognition → Gemini/tools → grounded spoken reply. When a typed confirmation exists, say yes during the ten-second follow-up without another wake. Check quiet timeout, interrupted/partial recognition and 12-second command timeout send no garbage.
+- Repeat Hey ROAM rapidly; only one command session. Never mind / Cancel / Stop listening retain the route; Cancel my route explicitly ends it. TTS wake-word barge-in is disabled: stop with microphone and tap again to capture.
+- Test calls, audio-route changes/Bluetooth, speech denied/revoked, missing/invalid/expired SDK key/model/license, background/resume and end/new trip during permission/capture/tool work. Confirm no simultaneous STT/wake/TTS microphone owners or hidden background recording.
+- Diagnostics must suspend wake before independent microphone/TTS tests; exiting returns to safe foreground wake. Save/remove AccessKey without logs/config exposure. Counters are session-only. Compare wake on/off battery/thermal behavior on matched 10–30 minute trips.
+- Execute [all small/large iPhone visual states](v05-ui-review.md), both themes, larger text, VoiceOver and reduced motion. Inspect safe areas, map labels/attribution and composer/search with keyboard. None of these physical checks has been completed by the automated build/export suite.
 
 Record actual results and known failures. Passing automated mocks/exports is not physical-device validation or proof of provider billing/model access.

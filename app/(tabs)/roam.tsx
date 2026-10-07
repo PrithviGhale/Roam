@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
-import { router, useFocusEffect } from "expo-router";
+import { useState } from "react";
+import { router } from "expo-router";
 import { KeyboardAvoidingView, Platform } from "react-native";
 import { Page } from "../../components/Page";
 import { RoamAssistant } from "../../components/RoamAssistant";
@@ -13,16 +13,15 @@ export default function AssistantScreen() {
   const { stopVoice } = useAssistant();
   const [category, setCategory] = useState<PlaceCategory | null>(null);
   const [visible, setVisible] = useState(false);
-  useFocusEffect(useCallback(() => () => stopVoice(), [stopVoice]));
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={75}
+      keyboardVerticalOffset={0}
     >
       <Page
-        title="Meet your co-pilot."
-        subtitle="Less searching. More exploring."
+        title="Along for the ride"
+        subtitle="Your journey, with a little help."
         scroll={false}
       >
         <RoamAssistant

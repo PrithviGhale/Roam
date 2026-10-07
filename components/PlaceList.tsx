@@ -1,5 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { QUICK_ACTIONS } from "../constants/places";
+import { Pressable, Text, View } from "react-native";
 import { useTheme } from "../themes/ThemeProvider";
 import type { Place, PlaceSuggestion } from "../types/domain";
 import {
@@ -7,144 +6,150 @@ import {
   formatDetour,
   formatDistance,
 } from "../utils/format";
+import { space, radius, type } from "../design/tokens";
 import { Icon } from "./ui";
-
 export function PlaceList({
   places,
   onSelect,
   numbered = false,
   actionLabel,
   disabled = false,
+  displayOnly = false,
 }: {
   places: Place[];
-  onSelect: (place: Place) => void;
+  onSelect(place: Place): void;
   numbered?: boolean;
   actionLabel?: string;
   disabled?: boolean;
+  displayOnly?: boolean;
 }) {
   const {
     theme: { colors },
   } = useTheme();
   return (
-    <View style={{ gap: 10 }}>
-      {places.map((place, index) => (
-        <Pressable
-          key={place.id}
-          accessibilityRole="button"
-          accessibilityLabel={`${actionLabel ?? "View"} ${place.name}${place.source === "mock" ? ", demo place" : ""}`}
-          disabled={disabled}
-          onPress={() => onSelect(place)}
-          style={({ pressed }) => [
-            styles.row,
-            {
-              backgroundColor: colors.surface,
+    <View style={{ gap: space.sm }}>
+      {places.map((place, index) => {
+        const facts = [
+          place.rating !== undefined
+            ? `★ ${place.rating.toFixed(1)}${place.ratingCount !== undefined ? ` · ${place.ratingCount} reviews` : ""}`
+            : null,
+          place.businessStatus === "CLOSED_PERMANENTLY"
+            ? "Permanently closed"
+            : place.openNow === undefined
+              ? null
+              : place.openNow
+                ? "Open now"
+                : "Closed now",
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        return (
+          <Pressable
+            key={place.id}
+            accessibilityRole={displayOnly ? "text" : "button"}
+            accessibilityState={{ disabled }}
+            accessibilityLabel={`${displayOnly ? "" : (actionLabel ?? "View")} ${place.name}${place.verifiedDetour ? `, verified detour ${formatDetour(place.verifiedDetour.durationSeconds)}` : ""}${place.source === "mock" ? ", demo place" : ""}`}
+            disabled={disabled || displayOnly}
+            onPress={() => onSelect(place)}
+            style={({ pressed }) => ({
+              minHeight: 88,
+              padding: space.md,
+              gap: space.sm,
+              borderRadius: radius.lg,
+              borderWidth: 1,
               borderColor: colors.border,
-              opacity: pressed || disabled ? 0.6 : 1,
-            },
-          ]}
-        >
-          <View style={[styles.icon, { backgroundColor: colors.accentSoft }]}>
-            <Icon
-              name={
-                QUICK_ACTIONS.find(
-                  (action) => action.category === place.category,
-                )?.icon ?? "location-outline"
-              }
-              color={colors.accent}
-            />
-          </View>
-          <View style={{ flex: 1, gap: 5 }}>
-            <Text
-              style={{ color: colors.text, fontSize: 15, fontWeight: "600" }}
+              backgroundColor: colors.surface,
+              opacity: disabled ? 0.45 : pressed ? 0.7 : 1,
+            })}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                gap: space.sm,
+                alignItems: "center",
+              }}
             >
-              {numbered ? `${index + 1}. ` : ""}
-              {place.name}
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 11 }}>
-              {place.subtitle}
-            </Text>
-            {place.source === "mock" ? (
-              <Text
-                style={{
-                  color: colors.accent,
-                  fontSize: 10,
-                  fontWeight: "600",
-                }}
-              >
-                DEMO PLACE
-              </Text>
-            ) : (
-              <>
-                <Text style={{ color: colors.accent, fontSize: 11 }}>
-                  {[
-                    place.rating !== undefined
-                      ? `★ ${place.rating.toFixed(1)}${place.ratingCount !== undefined ? ` (${place.ratingCount})` : ""}`
-                      : null,
-                    place.openNow !== undefined
-                      ? place.openNow
-                        ? "Open now"
-                        : "Closed now"
-                      : null,
-                    place.businessStatus === "CLOSED_PERMANENTLY"
-                      ? "Permanently closed"
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
+              <View style={{ flex: 1, gap: space.xxs }}>
+                <Text style={{ ...type.heading, color: colors.text }}>
+                  {numbered ? `${index + 1}. ` : ""}
+                  {place.name}
                 </Text>
-                {place.distanceMeters !== undefined && (
-                  <Text style={{ color: colors.muted, fontSize: 10 }}>
-                    {formatDistance(place.distanceMeters)} away · straight-line
+                {facts && place.source === "verified" ? (
+                  <Text style={{ ...type.small, color: colors.muted }}>
+                    {facts}
                   </Text>
-                )}
-                {place.verifiedDetour && (
+                ) : null}
+              </View>
+              <Icon
+                name="arrow-forward-outline"
+                size={18}
+                color={colors.muted}
+              />
+            </View>
+            {place.source === "mock" ? (
+              <Text style={{ ...type.small, color: colors.accent }}>
+                Demo place · fictional
+              </Text>
+            ) : place.verifiedDetour ? (
+              <View style={{ gap: space.xxs }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    gap: space.lg,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <Text style={{ ...type.title, color: colors.accent }}>
+                    {formatDetour(place.verifiedDetour.durationSeconds)}
+                  </Text>
                   <Text
                     style={{
-                      color: colors.accent,
-                      fontSize: 12,
-                      fontWeight: "600",
+                      ...type.heading,
+                      color: colors.text,
+                      alignSelf: "center",
                     }}
                   >
-                    {formatDetour(place.verifiedDetour.durationSeconds)} ·{" "}
                     {place.verifiedDetour.distanceMeters < 0 ? "−" : "+"}
                     {formatDistance(
                       Math.abs(place.verifiedDetour.distanceMeters),
-                    )}{" "}
-                    · Route snapshot{" "}
-                    {formatArrivalTime(place.verifiedDetour.calculatedAt)}
+                    )}
                   </Text>
-                )}
-                {!place.verifiedDetour &&
-                  place.routeOffsetMeters !== undefined && (
-                    <Text style={{ color: colors.muted, fontSize: 10 }}>
-                      {formatDistance(place.aheadMeters)} ahead ·{" "}
-                      {formatDistance(place.routeOffsetMeters)} off route
-                      (approx.)
-                    </Text>
-                  )}
-              </>
-            )}
-          </View>
-          <View style={{ gap: 5, alignItems: "center" }}>
+                </View>
+                <Text style={{ ...type.small, color: colors.muted }}>
+                  Verified route comparison ·{" "}
+                  {formatArrivalTime(place.verifiedDetour.calculatedAt)}
+                </Text>
+              </View>
+            ) : place.routeOffsetMeters !== undefined ? (
+              <Text style={{ ...type.small, color: colors.muted }}>
+                {formatDistance(place.aheadMeters)} ahead ·{" "}
+                {formatDistance(place.routeOffsetMeters)} off route, approximate
+              </Text>
+            ) : place.distanceMeters !== undefined ? (
+              <Text style={{ ...type.small, color: colors.muted }}>
+                {formatDistance(place.distanceMeters)} away · straight-line
+              </Text>
+            ) : null}
+            <Text
+              numberOfLines={2}
+              style={{ ...type.small, color: colors.muted }}
+            >
+              {place.address ?? place.subtitle}
+            </Text>
             {actionLabel && (
               <Text
                 style={{
-                  color: colors.accent,
-                  fontSize: 10,
+                  ...type.body,
                   fontWeight: "600",
+                  color: colors.accent,
                 }}
               >
-                {actionLabel}
+                {actionLabel} →
               </Text>
             )}
-            <Icon
-              name="arrow-up-right-box-outline"
-              size={18}
-              color={colors.muted}
-            />
-          </View>
-        </Pressable>
-      ))}
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
@@ -154,67 +159,50 @@ export function SuggestionsList({
   disabled,
 }: {
   suggestions: PlaceSuggestion[];
-  onSelect: (suggestion: PlaceSuggestion) => void;
+  onSelect(suggestion: PlaceSuggestion): void;
   disabled: boolean;
 }) {
   const {
     theme: { colors },
   } = useTheme();
   return (
-    <View style={{ gap: 10 }}>
+    <View>
       {suggestions.map((suggestion) => (
         <Pressable
           key={suggestion.id}
-          disabled={disabled}
           accessibilityRole="button"
+          accessibilityState={{ disabled }}
           accessibilityLabel={`Route to ${suggestion.name}`}
+          disabled={disabled}
           onPress={() => onSelect(suggestion)}
-          style={({ pressed }) => [
-            styles.row,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-              opacity: pressed || disabled ? 0.5 : 1,
-            },
-          ]}
+          style={({ pressed }) => ({
+            minHeight: 76,
+            paddingVertical: space.md,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: space.sm,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.border,
+            opacity: disabled ? 0.45 : pressed ? 0.6 : 1,
+          })}
         >
-          <Icon name="location-outline" color={colors.accent} />
-          <View style={{ flex: 1, gap: 6 }}>
-            <Text
-              style={{ color: colors.text, fontSize: 15, fontWeight: "600" }}
-            >
+          <Icon name="navigate-outline" size={18} color={colors.accent} />
+          <View style={{ flex: 1, gap: space.xxs }}>
+            <Text style={{ ...type.heading, color: colors.text }}>
               {suggestion.name}
             </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
+            <Text style={{ ...type.small, color: colors.muted }}>
               {suggestion.subtitle}
             </Text>
             {suggestion.source === "mock" && (
-              <Text style={{ color: colors.accent, fontSize: 10 }}>
-                DEMO PLACE
+              <Text style={{ ...type.small, color: colors.accent }}>
+                Demo place
               </Text>
             )}
           </View>
-          <Icon name="arrow-forward-outline" size={18} color={colors.muted} />
+          <Icon name="arrow-forward" size={18} color={colors.muted} />
         </Pressable>
       ))}
     </View>
   );
 }
-const styles = StyleSheet.create({
-  row: {
-    minHeight: 100,
-    borderWidth: 1,
-    borderRadius: 20,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  icon: {
-    width: 44,
-    height: 44,
-    borderRadius: 15,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});

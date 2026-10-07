@@ -16,7 +16,8 @@ export function QuickActions({
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
+      style={{ flexGrow: 0 }}
+      contentContainerStyle={{ gap: 8 }}
     >
       {QUICK_ACTIONS.map((action) => (
         <Pressable
@@ -28,9 +29,9 @@ export function QuickActions({
             backgroundColor: colors.surface,
             borderColor: colors.border,
             borderWidth: 1,
-            borderRadius: 18,
-            minHeight: 46,
-            paddingHorizontal: 15,
+            borderRadius: 12,
+            minHeight: 44,
+            paddingHorizontal: 12,
             gap: 7,
             flexDirection: "row",
             alignItems: "center",
@@ -38,7 +39,7 @@ export function QuickActions({
           })}
         >
           <Icon name={action.icon} size={17} color={colors.accent} />
-          <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>
+          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "600" }}>
             {action.label}
           </Text>
         </Pressable>

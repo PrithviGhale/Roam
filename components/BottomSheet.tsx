@@ -13,6 +13,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../themes/ThemeProvider";
 import { IconButton } from "./ui";
 import type { PropsWithChildren } from "react";
+import { useReducedMotion } from "../hooks/useReducedMotion";
+import { radius, space } from "../design/tokens";
 
 export function BottomSheet({
   visible,
@@ -33,11 +35,12 @@ export function BottomSheet({
   } = useTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
+  const reduced = useReducedMotion();
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType={reduced ? "none" : "slide"}
       onRequestClose={onClose}
       statusBarTranslucent
     >
@@ -59,7 +62,7 @@ export function BottomSheet({
               backgroundColor: colors.background,
               borderColor: colors.border,
               paddingBottom: Math.max(insets.bottom, 16),
-              maxHeight: height * 0.88,
+              maxHeight: height - insets.top - space.md,
             },
             tall && ({ height: height * 0.8 } as ViewStyle),
           ]}
@@ -91,25 +94,27 @@ const styles = StyleSheet.create({
   root: { flex: 1, justifyContent: "flex-end" },
   sheet: {
     width: "100%",
-    maxWidth: 600,
+    maxWidth: 560,
+    flexShrink: 1,
+    minHeight: 0,
     alignSelf: "center",
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
     borderWidth: 1,
-    paddingHorizontal: 22,
-    paddingTop: 10,
+    paddingHorizontal: space.md,
+    paddingTop: space.sm,
   },
   handle: {
     width: 38,
     height: 4,
     borderRadius: 4,
     alignSelf: "center",
-    marginBottom: 18,
+    marginBottom: space.sm,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    marginBottom: 22,
+    marginBottom: space.md,
   },
 });

@@ -1,4 +1,4 @@
-# V0.4 architecture
+# V0.5 architecture
 
 Expo Router retains Map/Trips/ROAM/Profile. ThemeProvider persists only the theme. RoamProvider owns one foreground GPS watcher and a subscribable TripController. AssistantProvider owns bounded conversation, optional native capture and read-aloud. No app/server database is added.
 
@@ -38,4 +38,6 @@ App Places/Routes REST config is Worker-only. Native Maps rendering uses a separ
 
 Development-only Profile route reports foreground sensor state/permissions, native recognition availability, transcript/confidence and TTS playback. `services/diagnostics.ts` distinguishes untested/configured/connectivity/error states. Health/auth are free of provider calls. Explicit probes use fixed Boston samples (one Places/Routes call) or Gemini model metadata. No phone GPS is sent. Production UI redirects; published paid probes default disabled and require an explicit backend flag.
 
-Optional native lookup preserves Expo Go text/TTS. Development builds include only needed foreground location/microphone/speech permissions. No background recording, persisted audio or wake word. Dismissal/background cancels diagnostics, assistant recognition, network and speech. iOS may use its network speech service. Exports/tests don't validate permissions, signing, native map layout or audio behavior.
+Optional native lookup preserves Expo Go text/TTS. `VoiceController` serializes wake/STT/TTS audio handoffs, while generation checks and abort signals invalidate stale callbacks. Porcupine locally detects a bundled custom Hey ROAM model during opted-in, foreground, started verified trips. Commands have a twelve-second window; verified pending confirmations allow ten-second follow-up. No background recording or audio persistence. Wake pauses during TTS; concurrent barge-in is disabled pending physical validation. Diagnostics temporarily suspends the global audio owner. See [voice architecture/setup](v05-voice.md).
+
+`design/tokens.ts` centralizes semantic palettes and presentation scales. `design/layout.ts` distinguishes planning/driving and exclusive map overlays. Map uses measured camera padding, a shared Pulse and compact DriveBar; Trips owns route/stop controls. Recommendations share verified detour cards; the assistant presents an editorial response stream. Exports and behavior tests don't validate native permissions, signing, visual layout, acoustic accuracy or audio routing. See [UI review](v05-ui-review.md).

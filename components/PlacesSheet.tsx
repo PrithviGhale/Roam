@@ -1,5 +1,4 @@
 import {
-  ActivityIndicator,
   ScrollView,
   Text,
   TextInput,
@@ -12,12 +11,14 @@ import { usePlaces } from "../hooks/usePlaces";
 import { useTheme } from "../themes/ThemeProvider";
 import { QUICK_ACTIONS } from "../constants/places";
 import { placesService } from "../services/places";
-import { errorMessage, isCancelled } from "../services/errors";
+import { isCancelled } from "../services/errors";
 import type { Place, PlaceCategory, PlaceSuggestion } from "../types/domain";
 import { BottomSheet } from "./BottomSheet";
 import { PlaceList, SuggestionsList } from "./PlaceList";
 import { GoogleAttribution } from "./GoogleAttribution";
-import { Button, Icon, Panel } from "./ui";
+import { Button, Icon } from "./ui";
+import { StatusCard } from "./StatusCard";
+import { acknowledge } from "../services/haptics";
 
 export function PlacesSheet({
   visible,
@@ -81,7 +82,7 @@ export function PlacesSheet({
       if (!controller.signal.aborted) onSelect(place);
     } catch (error) {
       if (!controller.signal.aborted && !isCancelled(error))
-        setSelectionError(errorMessage(error));
+        setSelectionError("ROAM couldn’t load that place. Try again.");
     } finally {
       if (detailRequest.current === controller) {
         busy.current = false;
@@ -113,8 +114,8 @@ export function PlacesSheet({
             ? alongRoute
               ? "Ahead along your route"
               : "Near your current location"
-            : "Google Places · Destination search"
-          : "Demo mode · Add a Google key for real places"
+            : "Choose where you’re heading"
+          : "Preview · Fictional places"
       }
       tall
     >
@@ -154,19 +155,36 @@ export function PlacesSheet({
         </View>
       )}
       <ScrollView
+        style={{ flex: 1, minHeight: 0 }}
+        keyboardDismissMode="interactive"
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingBottom: 20, gap: 15 }}
       >
+        {!category && !query && tripState.trip && (
+          <View style={{ gap: 8 }}>
+            <Text style={{ color: colors.muted, fontSize: 13 }}>
+              CURRENT DESTINATION
+            </Text>
+            <Text
+              style={{ color: colors.text, fontSize: 17, fontWeight: "600" }}
+            >
+              {tripState.trip.destination.name}
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 13 }}>
+              Searching for a new destination will replace this route.
+            </Text>
+          </View>
+        )}
         {!google && (
           <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 19 }}>
-            No Google configuration is set. Demo places are fictional and cannot
-            be used for driving routes.
+            These demo places are fictional and cannot be used for driving
+            routes.
           </Text>
         )}
         {google && category && (
           <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 18 }}>
             {alongRoute
-              ? "Top candidates are checked against Google driving routes. Detour labels appear only after a successful comparison; other distances are geometric."
+              ? "Verified detours compare driving routes. Other distances are approximate."
               : "Distances are straight-line estimates. Driving distance is calculated when you choose a route."}
             {category === "restroom"
               ? " Restroom coverage and access are not guaranteed; only Google-listed public bathrooms are included."
@@ -182,31 +200,10 @@ export function PlacesSheet({
           </Text>
         )}
         {resolving ? (
-          <View style={{ gap: 10, alignItems: "center", padding: 25 }}>
-            <ActivityIndicator color={colors.accent} />
-            <Text style={{ color: colors.muted }}>Resolving destination…</Text>
-          </View>
+          <StatusCard loading title="Finding your destination" />
         ) : selected ? (
-          <Panel style={{ gap: 15 }}>
-            <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 20 }}>
-              {selected.address ?? selected.subtitle}
-            </Text>
-            {selected.source === "verified" && (
-              <Text style={{ color: colors.accent, fontSize: 12 }}>
-                {[
-                  selected.rating !== undefined
-                    ? `★ ${selected.rating.toFixed(1)}`
-                    : null,
-                  selected.openNow !== undefined
-                    ? selected.openNow
-                      ? "Open now"
-                      : "Closed now"
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </Text>
-            )}
+          <View style={{ gap: 12 }}>
+            <PlaceList places={[selected]} displayOnly onSelect={() => {}} />
             <Button
               icon="navigate-outline"
               disabled={tripBusy}
@@ -225,7 +222,7 @@ export function PlacesSheet({
                 disabled={!canAdd || tripBusy}
                 onPress={() => {
                   if (canAdd) {
-                    void addTripStop(selected);
+                    void addTripStop(selected).then(() => acknowledge());
                     onClose();
                   }
                 }}
@@ -236,16 +233,21 @@ export function PlacesSheet({
             <Button secondary onPress={() => setSelected(null)}>
               Back to results
             </Button>
-          </Panel>
+          </View>
         ) : loading ? (
-          <ActivityIndicator
-            accessibilityLabel="Loading places"
-            color={colors.accent}
-            style={{ padding: 30 }}
+          <StatusCard
+            loading
+            title={
+              alongRoute
+                ? "Finding stops and checking detours"
+                : "Looking for places"
+            }
           />
         ) : error ? (
           <View style={{ gap: 15 }}>
-            <Text style={{ color: colors.danger }}>{error}</Text>
+            <Text style={{ color: colors.text }}>
+              ROAM couldn’t load places. Try again.
+            </Text>
             <Button secondary onPress={retry}>
               Try again
             </Button>
@@ -265,7 +267,7 @@ export function PlacesSheet({
               style={{ color: colors.text, fontSize: 17, fontWeight: "600" }}
             >
               {!category && google && query.trim().length < 2
-                ? "Where will the road take you?"
+                ? "Where are you heading?"
                 : "No places found"}
             </Text>
             <Text style={{ color: colors.muted, fontSize: 13 }}>

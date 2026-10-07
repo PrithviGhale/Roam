@@ -73,6 +73,8 @@ export class AssistantEngine {
     this.results = null;
     return [];
   }
+  hasPendingConfirmation() { return this.currentPending() !== null; }
+  clearPendingConfirmation() { this.pending = null; }
   private currentResult(place: Place): Place {
     const location = this.getLocation();
     if (

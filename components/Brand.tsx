@@ -1,31 +1,24 @@
 import { Text, View } from "react-native";
 import { useTheme } from "../themes/ThemeProvider";
-import { Icon } from "./ui";
-
+import { RoamPulse } from "./RoamPulse";
+import { space } from "../design/tokens";
 export function Brand({ large = false }: { large?: boolean }) {
   const {
     theme: { colors },
   } = useTheme();
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-      <View
-        style={{
-          width: large ? 48 : 34,
-          height: large ? 48 : 34,
-          borderRadius: large ? 16 : 12,
-          backgroundColor: colors.accent,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Icon name="navigate" size={large ? 25 : 19} color={colors.onAccent} />
-      </View>
+    <View
+      accessible
+      accessibilityLabel="ROAM"
+      style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}
+    >
+      <RoamPulse size={large ? 44 : 32} />
       <Text
         style={{
           color: colors.text,
-          fontSize: large ? 32 : 25,
-          fontWeight: "800",
-          letterSpacing: 4,
+          fontSize: large ? 28 : 21,
+          fontWeight: "700",
+          letterSpacing: 3,
         }}
       >
         ROAM

@@ -1,5 +1,7 @@
 # V0.4 dependency audit · 2026-10-06
 
+This document records the original SDK 54 audit before the subsequent SDK 57 upgrade. Its dependency versions and counts describe that snapshot, not the current SDK 57 tree. The PostCSS override remains in place; the supported platform upgrade and its validation are documented in README. The SDK 57 installation reported **32 remaining findings** (10 moderate, 22 high, 0 critical); the upgrade is not a declaration that all advisories are resolved.
+
 Baseline `npm audit`: **45** advisory package findings (19 moderate, 26 high, 0 critical). After the safe PostCSS override/install: **44** (19 moderate, 25 high, 0 critical). These are dependency-tree findings, not forty-four distinct remotely reachable app vulnerabilities. Counts can change as the advisory database changes.
 
 ## Applied fix

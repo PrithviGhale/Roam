@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { useTheme } from "../themes/ThemeProvider";
 import type { ComponentProps, PropsWithChildren } from "react";
+import { radius, space, touch, type } from "../design/tokens";
 
 export type IconName = ComponentProps<typeof Ionicons>["name"];
 export function Icon({
@@ -18,7 +19,7 @@ export function Icon({
 }: {
   name: IconName;
   size?: number;
-  color?: string;
+  color?: ComponentProps<typeof Ionicons>["color"];
 }) {
   const { theme } = useTheme();
   return (
@@ -31,12 +32,14 @@ export function IconButton({
   onPress,
   active = false,
   style,
+  disabled = false,
 }: {
   icon: IconName;
   label: string;
   onPress: () => void;
   active?: boolean;
   style?: StyleProp<ViewStyle>;
+  disabled?: boolean;
 }) {
   const {
     theme: { colors },
@@ -45,13 +48,15 @@ export function IconButton({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ disabled, selected: active }}
+      disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
         styles.iconButton,
         {
           backgroundColor: active ? colors.accent : colors.surface,
           borderColor: colors.border,
-          opacity: pressed ? 0.7 : 1,
+          opacity: disabled ? 0.4 : pressed ? 0.7 : 1,
         },
         style,
       ]}
@@ -79,6 +84,7 @@ export function Button({
     <Pressable
       accessibilityRole="button"
       disabled={disabled}
+      accessibilityState={{ disabled }}
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
@@ -134,9 +140,7 @@ export function Eyebrow({ children }: PropsWithChildren) {
     <Text
       style={{
         color: colors.muted,
-        fontSize: 10,
-        fontWeight: "700",
-        letterSpacing: 2,
+        ...type.label,
       }}
     >
       {children}
@@ -145,30 +149,25 @@ export function Eyebrow({ children }: PropsWithChildren) {
 }
 const styles = StyleSheet.create({
   iconButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+    width: touch.min,
+    height: touch.min,
+    borderRadius: radius.md,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
   button: {
-    minHeight: 50,
-    borderRadius: 16,
-    paddingHorizontal: 18,
+    minHeight: touch.primary,
+    borderRadius: radius.md,
+    paddingHorizontal: space.md,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
   },
   panel: {
-    borderRadius: 22,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    padding: 18,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: 5 },
-    shadowRadius: 18,
-    elevation: 4,
+    padding: space.md,
   },
 });

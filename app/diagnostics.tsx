@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Text, View } from "react-native";
+import { AppState, Text, TextInput, View } from "react-native";
 import { Redirect, router, useFocusEffect } from "expo-router";
 import * as Location from "expo-location";
 import * as Speech from "expo-speech";
@@ -30,6 +30,8 @@ function DevDiagnostics() {
   } = useTheme();
   const roam = useRoam();
   const assistant = useAssistant();
+  const [wakeKey, setWakeKey] = useState("");
+  const [wakeNote, setWakeNote] = useState<string | null>(null);
   const [recognition] = useState(speechInputModule);
   const [client] = useState(() =>
     createDiagnosticClient(googleConfiguration.proxyUrl, roamAccessToken),
@@ -88,9 +90,12 @@ function DevDiagnostics() {
   }, [recognition]);
   useFocusEffect(
     useCallback(() => {
-      assistant.stopVoice();
-      return stop;
-    }, [assistant.stopVoice, stop]),
+      void assistant.suspendVoice(true);
+      return () => {
+        stop();
+        void assistant.suspendVoice(false);
+      };
+    }, [assistant.suspendVoice, stop]),
   );
   useEffect(() => {
     mounted.current = true;
@@ -189,7 +194,8 @@ function DevDiagnostics() {
   };
   const startListening = async () => {
     if (!recognition || work.current || listening) return;
-    assistant.stopVoice();
+    if (!(await assistant.suspendVoice(true))) return;
+    if (!mounted.current || AppState.currentState !== "active") return;
     stop();
     const attempt = version.current;
     work.current = true;
@@ -238,7 +244,8 @@ function DevDiagnostics() {
   };
   const testTts = async () => {
     if (busy || listening) return;
-    assistant.stopVoice();
+    if (!(await assistant.suspendVoice(true))) return;
+    if (!mounted.current || AppState.currentState !== "active") return;
     stop();
     const attempt = version.current;
     update("tts", { state: "checking", detail: "Checking voices…" });
@@ -290,6 +297,93 @@ function DevDiagnostics() {
       <Button secondary onPress={() => router.back()}>
         Back
       </Button>
+      <Panel style={{ gap: 12 }}>
+        <Eyebrow>HEY ROAM · DEVICE SETUP</Eyebrow>
+        {line("Native/model availability", assistant.wakeAvailability)}
+        {line(
+          "Wake active seconds (RAM only)",
+          String(Math.round(assistant.voiceDiagnostics().wakeActiveMs / 1000)),
+        )}
+        {line(
+          "Wake activations",
+          String(assistant.voiceDiagnostics().activations),
+        )}
+        {line(
+          "Speech sessions",
+          String(assistant.voiceDiagnostics().speechSessions),
+        )}
+        {line(
+          "Concurrent wake / TTS",
+          "Disabled pending physical iOS validation",
+        )}
+        <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 20 }}>
+          Generate an iOS Hey ROAM model in Picovoice Console and rebuild with
+          assets/wake/hey-roam_ios.ppn. Enter your AccessKey here on this
+          device. It is stored in SecureStore and never logged or sent to the
+          ROAM backend. Check Picovoice licensing before distribution.
+        </Text>
+        <TextInput
+          accessibilityLabel="Picovoice AccessKey"
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          value={wakeKey}
+          onChangeText={setWakeKey}
+          placeholder="Device AccessKey"
+          placeholderTextColor={colors.muted}
+          style={{
+            minHeight: 52,
+            paddingHorizontal: 12,
+            color: colors.text,
+            borderColor: colors.border,
+            borderWidth: 1,
+            borderRadius: 12,
+          }}
+        />
+        <Button
+          secondary
+          disabled={
+            assistant.wakeAvailability === "development-build" ||
+            !wakeKey.trim()
+          }
+          onPress={() => {
+            void assistant
+              .configureWakeKey(wakeKey)
+              .then(() => {
+                setWakeKey("");
+                setWakeNote(
+                  "AccessKey saved on this device. Return to an active trip and enable Hey ROAM.",
+                );
+              })
+              .catch(() =>
+                setWakeNote(
+                  "Device setup could not be saved. Use the iOS development build.",
+                ),
+              );
+          }}
+        >
+          Save device key
+        </Button>
+        <Button
+          secondary
+          disabled={
+            busy ||
+            listening ||
+            assistant.wakeAvailability === "development-build"
+          }
+          onPress={() => {
+            void assistant
+              .configureWakeKey("")
+              .then(() => setWakeNote("Device key removed."))
+              .catch(() => setWakeNote("Could not remove the key."));
+          }}
+        >
+          Remove device key
+        </Button>
+        {wakeNote && (
+          <Text style={{ color: colors.text, fontSize: 13 }}>{wakeNote}</Text>
+        )}
+      </Panel>
       <Panel style={{ gap: 8 }}>
         <Eyebrow>FOREGROUND GPS</Eyebrow>
         {line("Permission", permissions.location)}

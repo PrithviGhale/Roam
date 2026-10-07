@@ -1,188 +1,102 @@
 import { useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useAssistant } from "../contexts/AssistantProvider";
+import { useRoam } from "../contexts/RoamProvider";
 import { useTheme } from "../themes/ThemeProvider";
-import type { PlaceCategory } from "../types/domain";
-import { Icon, IconButton } from "./ui";
-import { placesService } from "../services/places";
+import { useReducedMotion } from "../hooks/useReducedMotion";
+import { space, radius, type } from "../design/tokens";
+import { RoamPulse } from "./RoamPulse";
+import { IconButton } from "./ui";
 import { PlaceList } from "./PlaceList";
 import { GoogleAttribution } from "./GoogleAttribution";
-import { useRoam } from "../contexts/RoamProvider";
-
-const prompts = ["I’m hungry", "I need gas", "I need to pee", "What’s my ETA?"];
+import { StatusCard } from "./StatusCard";
+import type { PlaceCategory } from "../types/domain";
 export function RoamAssistant({
   onPlaces,
 }: {
   onPlaces: (category: PlaceCategory) => void;
 }) {
+  const assistant = useAssistant();
+  const { tripState } = useRoam();
   const {
     theme: { colors },
   } = useTheme();
-  const {
-    messages,
-    state,
-    mode,
-    send,
-    addPlace,
-    toggleVoice,
-    speak,
-    autoSpeak,
-    setAutoSpeak,
-    voiceNotice,
-    transcript,
-  } = useAssistant();
-  const { tripState } = useRoam();
+  const reduced = useReducedMotion();
   const [draft, setDraft] = useState("");
   const scroll = useRef<ScrollView>(null);
-  const processing =
-    state === "thinking" || state === "usingTool" || state === "transcribing";
+  const processing = ["thinking", "usingTool", "transcribing"].includes(
+    assistant.state,
+  );
   const submit = () => {
     if (!draft.trim() || processing) return;
-    void send(draft);
+    void assistant.send(draft);
     setDraft("");
   };
   return (
-    <View style={{ flex: 1, gap: 14 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
-        <View
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: 3,
-            backgroundColor: colors.accent,
-          }}
+    <View style={{ flex: 1, minHeight: 0, gap: space.sm }}>
+      <View style={{ gap: space.xs }}>
+        <RoamPulse
+          phase={assistant.voicePhase}
+          label
+          followUp={assistant.voice.followUp}
         />
-        <Text
-          accessibilityLiveRegion="polite"
-          style={{
-            color: colors.accent,
-            fontSize: 10,
-            letterSpacing: 1,
-            fontWeight: "700",
-            flexShrink: 1,
-            lineHeight: 15,
-          }}
-        >
-          {state === "idle"
-            ? mode === "gemini"
-              ? "YOUR AI FOR THE ROAD · GEMINI"
-              : "YOUR AI FOR THE ROAD · DEMO"
-            : state === "listening"
-              ? "LISTENING · TAP MIC TO FINISH"
-              : state === "usingTool"
-                ? "CHECKING PLACES AND YOUR TRIP…"
-                : state === "thinking"
-                  ? "THINKING…"
-                  : state === "transcribing"
-                    ? "FINISHING YOUR REQUEST…"
-                    : state === "error"
-                      ? "TRY AGAIN WHEN YOU’RE READY"
-                      : "SPEAKING · TAP MIC TO STOP"}
-        </Text>
-        <View style={{ flex: 1 }} />
-        <Pressable
-          accessibilityRole="switch"
-          accessibilityState={{ checked: autoSpeak }}
-          accessibilityLabel="Automatic concise voice replies"
-          onPress={() => setAutoSpeak(!autoSpeak)}
-          style={{ minHeight: 44, justifyContent: "center" }}
-        >
-          <Text style={{ color: colors.muted, fontSize: 10 }}>
-            Voice replies {autoSpeak ? "on" : "off"}
+        {tripState.trip && (
+          <Text
+            numberOfLines={1}
+            style={{ ...type.small, color: colors.muted }}
+          >
+            On the way to {tripState.trip.destination.name}
           </Text>
-        </Pressable>
+        )}
       </View>
       <ScrollView
         ref={scroll}
-        onContentSizeChange={() =>
-          scroll.current?.scrollToEnd({ animated: true })
-        }
+        style={{ flex: 1, minHeight: 0 }}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ gap: 16, paddingBottom: 10 }}
+        keyboardDismissMode="interactive"
+        onContentSizeChange={() =>
+          scroll.current?.scrollToEnd({ animated: !reduced })
+        }
+        contentContainerStyle={{ gap: space.lg, paddingBottom: space.sm }}
       >
-        {messages.map((message) => (
+        {assistant.messages.map((message) => (
           <View
             key={message.id}
             style={{
-              alignSelf: message.role === "user" ? "flex-end" : "flex-start",
-              maxWidth: "94%",
-              ...(message.places?.length ? { width: "100%" as const } : {}),
-              gap: 6,
+              gap: space.xs,
+              borderLeftWidth: message.role === "assistant" ? 2 : 0,
+              borderLeftColor: message.error ? colors.danger : colors.accent,
+              paddingLeft: message.role === "assistant" ? space.sm : 0,
+              paddingVertical: space.xxs,
             }}
           >
-            <Text
-              style={{
-                color: colors.muted,
-                fontSize: 9,
-                letterSpacing: 1.4,
-                paddingHorizontal: 3,
-              }}
-            >
+            <Text style={{ ...type.label, color: colors.muted }}>
               {message.role === "user" ? "YOU" : "ROAM"}
             </Text>
-            <View
-              style={[
-                styles.bubble,
-                {
-                  backgroundColor:
-                    message.role === "user"
-                      ? colors.accentSoft
-                      : colors.surface,
-                  borderColor: colors.border,
-                },
-              ]}
+            <Text
+              selectable
+              style={{
+                ...type.body,
+                color: message.role === "user" ? colors.muted : colors.text,
+              }}
             >
-              <Text
-                style={{
-                  color: message.error ? colors.danger : colors.text,
-                  fontSize: 15,
-                  lineHeight: 23,
-                }}
+              {message.error
+                ? "ROAM couldn’t complete that request. Your trip is kept. Try again."
+                : message.text}
+            </Text>
+            {message.category && (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => onPlaces(message.category!)}
+                style={{ minHeight: 44, justifyContent: "center" }}
               >
-                {message.text}
-              </Text>
-              {message.category && (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => onPlaces(message.category!)}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 9,
-                    minHeight: 44,
-                    marginTop: 10,
-                  }}
-                >
-                  <Icon
-                    name="location-outline"
-                    color={colors.accent}
-                    size={18}
-                  />
-                  <Text
-                    style={{
-                      color: colors.accent,
-                      fontSize: 13,
-                      fontWeight: "700",
-                    }}
-                  >
-                    {placesService.mode === "google"
-                      ? "Search places"
-                      : "Show demo places"}
-                  </Text>
-                  <Icon name="arrow-forward" color={colors.accent} size={16} />
-                </Pressable>
-              )}
-            </View>
-            {message.places && message.places.length > 0 && (
-              <View style={{ gap: 8, width: "100%" }}>
+                <Text style={{ ...type.small, color: colors.accent }}>
+                  Find {message.category} →
+                </Text>
+              </Pressable>
+            )}
+            {!!message.places?.length && (
+              <>
                 <PlaceList
                   places={message.places}
                   numbered
@@ -192,170 +106,131 @@ export function RoamAssistant({
                     tripState.status !== "ready" ||
                     !tripState.trip?.route
                   }
-                  onSelect={(place) => void addPlace(place)}
+                  onSelect={(place) => void assistant.addPlace(place)}
                 />
-                <GoogleAttribution places={message.places} />
-                <Text style={{ color: colors.muted, fontSize: 10 }}>
-                  Use a card, or type “add the second one.”{" "}
-                  {tripState.trip?.route
-                    ? ""
-                    : "Choose a destination on the map before adding stops."}
-                </Text>
-              </View>
+                <GoogleAttribution compact places={message.places} />
+              </>
             )}
             {message.role === "assistant" && (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Read ROAM response aloud"
-                onPress={() => speak(message.spokenText ?? message.text)}
+                disabled={processing}
+                onPress={() =>
+                  assistant.speak(message.spokenText ?? message.text)
+                }
                 style={{
                   minHeight: 44,
-                  minWidth: 44,
                   justifyContent: "center",
-                  paddingHorizontal: 8,
+                  alignSelf: "flex-start",
                 }}
               >
-                <Icon
-                  name="volume-medium-outline"
-                  size={17}
-                  color={colors.muted}
-                />
+                <Text style={{ ...type.small, color: colors.muted }}>
+                  Read aloud
+                </Text>
               </Pressable>
             )}
           </View>
         ))}
-        {processing && (
-          <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
-            <ActivityIndicator color={colors.accent} />
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {state === "usingTool"
-                ? "Finding options or updating your trip…"
-                : "Checking your request…"}
-            </Text>
-          </View>
+        {assistant.voiceNotice && (
+          <StatusCard title="Voice" detail={assistant.voiceNotice} />
+        )}
+        {assistant.transcript && (
+          <Text
+            accessibilityLiveRegion="polite"
+            style={{ ...type.body, color: colors.listening }}
+          >
+            {assistant.transcript}
+          </Text>
         )}
       </ScrollView>
-      {(state === "listening" || voiceNotice) && (
-        <View
-          style={[styles.voiceDemo, { backgroundColor: colors.accentSoft }]}
+      {!tripState.trip?.startedAt && (
+        <ScrollView
+          horizontal
+          style={{ flexGrow: 0 }}
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ gap: space.xs }}
         >
-          <Icon name="mic-outline" color={colors.accent} />
-          <View style={{ flex: 1, gap: 5 }}>
-            <Text
-              style={{ color: colors.text, fontWeight: "600", fontSize: 13 }}
+          {["Find coffee", "I need gas", "What’s my ETA?"].map((prompt) => (
+            <Pressable
+              key={prompt}
+              accessibilityRole="button"
+              disabled={processing}
+              onPress={() => void assistant.send(prompt)}
+              style={{
+                minHeight: 44,
+                justifyContent: "center",
+                paddingHorizontal: space.sm,
+                backgroundColor: colors.elevated,
+                borderRadius: radius.md,
+              }}
             >
-              {voiceNotice
-                ? "Text input is always available"
-                : "Listening to your request"}
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 17 }}>
-              {voiceNotice ??
-                (transcript ||
-                  "Speak now. Tap the microphone to finish. No wake word or background listening.")}
-            </Text>
-          </View>
-        </View>
+              <Text style={{ ...type.small, color: colors.text }}>
+                {prompt}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
       )}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ flexGrow: 0 }}
-        contentContainerStyle={{ gap: 7 }}
-      >
-        {prompts.map((prompt) => (
-          <Pressable
-            key={prompt}
-            accessibilityRole="button"
-            disabled={processing}
-            onPress={() => void send(prompt)}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              paddingHorizontal: 13,
-              minHeight: 44,
-              justifyContent: "center",
-              borderRadius: 14,
-            }}
-          >
-            <Text style={{ color: colors.text, fontSize: 12 }}>{prompt}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
       <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-          paddingBottom: 4,
-        }}
+        style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}
       >
         <IconButton
           icon={
-            state === "speaking" || state === "listening"
-              ? "stop"
+            assistant.state === "listening" || assistant.state === "speaking"
+              ? "stop-outline"
               : "mic-outline"
           }
+          active={assistant.state === "listening"}
+          disabled={processing}
           label={
-            state === "speaking"
-              ? "Stop speaking"
-              : state === "listening"
-                ? "Finish speaking"
-                : "Speak to ROAM"
+            assistant.state === "listening" || assistant.state === "speaking"
+              ? "Stop voice conversation"
+              : "Speak to ROAM"
           }
-          active={state === "listening" || state === "speaking"}
-          onPress={toggleVoice}
+          onPress={assistant.toggleVoice}
         />
         <View
           style={{
             flex: 1,
+            minWidth: 0,
             flexDirection: "row",
             alignItems: "center",
+            backgroundColor: colors.surface,
             borderWidth: 1,
             borderColor: colors.border,
-            borderRadius: 16,
-            backgroundColor: colors.surface,
-            paddingLeft: 13,
-            paddingRight: 4,
+            borderRadius: radius.md,
+            paddingLeft: space.sm,
+            paddingRight: space.xxs,
           }}
         >
           <TextInput
             accessibilityLabel="Message ROAM"
             value={draft}
             onChangeText={setDraft}
-            placeholder="Ask me anything…"
+            placeholder="Ask about your journey"
             placeholderTextColor={colors.muted}
             maxLength={1000}
             returnKeyType="send"
             onSubmitEditing={submit}
-            style={{ flex: 1, minHeight: 48, color: colors.text, fontSize: 14 }}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              minHeight: 52,
+              ...type.body,
+              color: colors.text,
+            }}
           />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Send message"
+          <IconButton
+            icon="arrow-up"
+            active
+            label="Send message"
             disabled={!draft.trim() || processing}
             onPress={submit}
-            style={{
-              width: 44,
-              height: 44,
-              alignItems: "center",
-              justifyContent: "center",
-              opacity: !draft.trim() || processing ? 0.35 : 1,
-            }}
-          >
-            <Icon name="arrow-up-circle" size={30} color={colors.accent} />
-          </Pressable>
+          />
         </View>
       </View>
     </View>
   );
 }
-const styles = StyleSheet.create({
-  bubble: { padding: 16, borderRadius: 19, borderWidth: 1 },
-  voiceDemo: {
-    padding: 14,
-    borderRadius: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-});

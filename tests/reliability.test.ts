@@ -4,13 +4,13 @@ import {
   WakeRuntime,
   VoiceSetupError,
   type WakeDependencies,
-} from "../services/voice/WakeRuntime";
-import { VoiceEventLog } from "../services/voice/events";
-import { SpeedFilter, HeadingFilter } from "../utils/motionFilter";
-import { ProgressTracker } from "../services/progressTracker";
-import { AssistantRetry } from "../services/assistant/retry";
-import { decodeRecovery, encodeRecovery } from "../services/tripRecovery";
-import { TripController } from "../services/tripController";
+} from "../src/services/voice/WakeRuntime";
+import { VoiceEventLog } from "../src/services/voice/events";
+import { SpeedFilter, HeadingFilter } from "../src/utils/motionFilter";
+import { ProgressTracker } from "../src/services/progressTracker";
+import { AssistantRetry } from "../src/services/assistant/retry";
+import { decodeRecovery, encodeRecovery } from "../src/services/tripRecovery";
+import { TripController } from "../src/services/tripController";
 import { deferred, destination, origin, routeFor, stop } from "./fixtures";
 
 function wake() {

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { compassLabel, speedInMph, validCoordinate } from "../utils/location";
+import { compassLabel, speedInMph, validCoordinate } from "../src/utils/location";
 
 const now = 100000;
 test("GPS speed converts meters per second to MPH and suppresses stationary drift", () => {

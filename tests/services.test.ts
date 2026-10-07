@@ -1,11 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mockReply } from "../services/ai";
-import { demoPlacesService as placesService } from "../services/demoPlaces";
-import { unconfiguredRoutesService as routesService } from "../services/routes";
-import { weatherService } from "../services/weather";
-import type { RoamContext, PlaceCategory } from "../types/domain";
-import { validCoordinate } from "../utils/location";
+import { mockReply } from "../src/services/ai";
+import { demoPlacesService as placesService } from "../src/services/demoPlaces";
+import { unconfiguredRoutesService as routesService } from "../src/services/routes";
+import { weatherService } from "../src/services/weather";
+import type { RoamContext, PlaceCategory } from "../src/types/domain";
+import { validCoordinate } from "../src/utils/location";
 
 const context: RoamContext = {
   location: null,

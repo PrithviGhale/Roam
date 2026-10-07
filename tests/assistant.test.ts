@@ -1,11 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { AssistantEngine } from "../services/assistant/engine";
+import { AssistantEngine } from "../src/services/assistant/engine";
 import {
   createAssistantTransport,
   type AssistantTransport,
-} from "../services/assistant/client";
-import { buildContext, compactHistory } from "../services/assistant/context";
+} from "../src/services/assistant/client";
+import { buildContext, compactHistory } from "../src/services/assistant/context";
 import {
   toolNames,
   toolSchemas,
@@ -13,11 +13,11 @@ import {
   type AssistantResponse,
   type ToolCall,
 } from "../shared/assistant";
-import { TripController } from "../services/tripController";
-import { createTripTools } from "../services/tools";
-import { demoPlacesService } from "../services/demoPlaces";
-import { ServiceError } from "../services/errors";
-import type { Message, Place, PlacesService } from "../types/domain";
+import { TripController } from "../src/services/tripController";
+import { createTripTools } from "../src/services/tools";
+import { demoPlacesService } from "../src/services/demoPlaces";
+import { ServiceError } from "../src/services/errors";
+import type { Message, Place, PlacesService } from "../src/types/domain";
 import { deferred, destination, origin, routeFor, stop } from "./fixtures";
 
 const choices: Place[] = [1, 2, 3].map((index) => ({

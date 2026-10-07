@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { VoiceController } from "../services/voice/VoiceController";
-import { VoiceSetupError } from "../services/voice/WakeRuntime";
+import { VoiceController } from "../src/services/voice/VoiceController";
+import { VoiceSetupError } from "../src/services/voice/WakeRuntime";
 import {
   defaultVoiceSettings,
   conversationCancelled,
@@ -9,7 +9,7 @@ import {
   type CaptureEvents,
   type VoicePorts,
   type WakeAvailability,
-} from "../services/voice/types";
+} from "../src/services/voice/types";
 const flush = async () => {
   for (let step = 0; step < 40; step++) await Promise.resolve();
 };
@@ -233,6 +233,46 @@ function harness(availability: WakeAvailability = "ready") {
     },
   };
 }
+test("navigation speech interrupts assistant playback through the same audio owner", async () => {
+  const h = harness();
+  await h.controller.speak("Restaurant details.", 1);
+  const before = h.events.filter((e) => e === "tts-stop").length;
+  await h.controller.speak("Turn right now.", 4);
+  assert.ok(h.events.filter((e) => e === "tts-stop").length > before);
+  assert.equal(h.speaking, true);
+  assert.equal(h.microphone, null);
+  await h.controller.dispose();
+});
+test("assistant/status speech cannot interrupt critical navigation", async () => {
+  const h = harness();
+  await h.controller.speak("Turn right now.", 4);
+  const started = h.events.filter((e) => e === "tts-start").length;
+  await h.controller.speak("Restaurant details.", 1);
+  assert.equal(h.events.filter((e) => e === "tts-start").length, started);
+  await h.controller.dispose();
+});
+test("ending navigation speech preserves unrelated assistant speech", async () => {
+  const h = harness();
+  await h.controller.speak("Restaurant details.", 1);
+  await h.controller.stopNavigationSpeech();
+  assert.equal(h.speaking, true);
+  await h.controller.speak("Turn right.", 3);
+  await h.controller.stopNavigationSpeech();
+  assert.equal(h.speaking, false);
+  await h.controller.dispose();
+});
+test("wake resumes after navigation playback completes", async () => {
+  const h = harness();
+  await h.arm();
+  await h.controller.speak("Turn right.", 3);
+  assert.equal(h.microphone, null);
+  h.finishSpeaking();
+  await flush();
+  assert.equal(h.controller.snapshot.phase, "cooldown");
+  await h.controller.refreshAvailability();
+  assert.equal(h.microphone, "wake");
+  await h.controller.dispose();
+});
 test("wake is off by default and needs a foreground active trip", async () => {
   const h = harness();
   h.controller.configure(defaultVoiceSettings, true, "trip");

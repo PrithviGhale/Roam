@@ -4,18 +4,18 @@ import {
   createGoogleClient,
   type GoogleClient,
   type GoogleRequest,
-} from "../services/google/client";
-import { createGooglePlacesService } from "../services/google/places";
+} from "../src/services/google/client";
+import { createGooglePlacesService } from "../src/services/google/places";
 import {
   createGoogleRoutesService,
   normalizeRoute,
-} from "../services/google/routes";
+} from "../src/services/google/routes";
 import {
   normalizePlace,
   normalizePlaceResults,
   normalizeSuggestions,
-} from "../services/google/normalization";
-import { ServiceError } from "../services/errors";
+} from "../src/services/google/normalization";
+import { ServiceError } from "../src/services/errors";
 import { destination, origin, routeFor, stop } from "./fixtures";
 
 const rawPlace = {

@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
   createGoogleClient,
   type GoogleRequest,
-} from "../../services/google/client";
+} from "../../src/services/google/client";
 const coordinate = z
   .object({
     latitude: z.number().min(-90).max(90),

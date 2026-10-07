@@ -1,23 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Platform, Text, TextInput, View } from "react-native";
 import Constants from "expo-constants";
-import { useLowPower } from "../contexts/PowerProvider";
-import { useRouteProgress } from "../hooks/useRouteProgress";
+import { useLowPower } from "../src/contexts/PowerProvider";
+import { useRouteProgress } from "../src/hooks/useRouteProgress";
 import { Redirect, router, useFocusEffect } from "expo-router";
 import * as Location from "expo-location";
 import * as Speech from "expo-speech";
-import { Page } from "../components/Page";
-import { Button, Eyebrow, Panel } from "../components/ui";
-import { useRoam } from "../contexts/RoamProvider";
-import { useAssistant } from "../contexts/AssistantProvider";
-import { useTheme } from "../themes/ThemeProvider";
-import { googleConfiguration, roamAccessToken } from "../services/config";
-import { speechInputModule } from "../services/speechInput";
+import { Page } from "../src/components/Page";
+import { Button, Eyebrow, Panel } from "../src/components/ui";
+import { useRoam } from "../src/contexts/RoamProvider";
+import { NavigationDiagnostics } from "../src/components/NavigationDiagnostics";
+import { useAssistant } from "../src/contexts/AssistantProvider";
+import { useTheme } from "../src/themes/ThemeProvider";
+import { googleConfiguration, roamAccessToken } from "../src/services/config";
+import { speechInputModule } from "../src/services/speechInput";
 import {
   createDiagnosticClient,
   type DiagnosticResult,
   type DiagnosticService,
-} from "../services/diagnostics";
+} from "../src/services/diagnostics";
 
 const untested: DiagnosticResult = {
   state: "notTested",
@@ -623,6 +624,7 @@ function DevDiagnostics() {
         </Button>
       </Panel>
       <Panel style={{ gap: 8 }}>
+        <NavigationDiagnostics />
         <Eyebrow>NAVIGATION / SESSION EVENTS</Eyebrow>
         {line(
           "Started / route loaded",

@@ -8,23 +8,24 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTheme } from "../../themes/ThemeProvider";
-import { useRoam } from "../../contexts/RoamProvider";
-import { useAssistant } from "../../contexts/AssistantProvider";
-import { MapCanvas } from "../../components/MapCanvas";
-import { Brand } from "../../components/Brand";
-import { SearchBar } from "../../components/SearchBar";
-import { QuickActions } from "../../components/QuickActions";
-import { LocationNotice } from "../../components/LocationNotice";
-import { PlacesSheet } from "../../components/PlacesSheet";
-import { BottomSheet } from "../../components/BottomSheet";
-import { RoamAssistant } from "../../components/RoamAssistant";
-import { DriveBar } from "../../components/DriveBar";
-import { RoamPulse, voiceLabels } from "../../components/RoamPulse";
-import { IconButton } from "../../components/ui";
-import { tripMode, phoneLayout, overlayReducer } from "../../design/layout";
-import { radius, space, type } from "../../design/tokens";
-import type { PlaceCategory, Place } from "../../types/domain";
+import { useTheme } from "../../src/themes/ThemeProvider";
+import { useRoam } from "../../src/contexts/RoamProvider";
+import { useAssistant } from "../../src/contexts/AssistantProvider";
+import { MapCanvas } from "../../src/components/MapCanvas";
+import { Brand } from "../../src/components/Brand";
+import { SearchBar } from "../../src/components/SearchBar";
+import { QuickActions } from "../../src/components/QuickActions";
+import { LocationNotice } from "../../src/components/LocationNotice";
+import { PlacesSheet } from "../../src/components/PlacesSheet";
+import { BottomSheet } from "../../src/components/BottomSheet";
+import { RoamAssistant } from "../../src/components/RoamAssistant";
+import { DriveBar } from "../../src/components/DriveBar";
+import { ManeuverRail } from "../../src/components/ManeuverRail";
+import { RoamPulse, voiceLabels } from "../../src/components/RoamPulse";
+import { IconButton } from "../../src/components/ui";
+import { tripMode, phoneLayout, overlayReducer } from "../../src/design/layout";
+import { radius, space, type } from "../../src/design/tokens";
+import type { PlaceCategory, Place } from "../../src/types/domain";
 export default function MapScreen() {
   const {
     theme: { colors },
@@ -111,6 +112,7 @@ export default function MapScreen() {
           </View>
         </View>
         {!driving && <SearchBar onPress={() => openPlaces(null)} />}
+        <ManeuverRail />
       </View>
       <ScrollView
         pointerEvents="box-none"
@@ -158,6 +160,13 @@ export default function MapScreen() {
           ) : (
             <View />
           )}
+          {driving && (
+            <IconButton
+              icon="map-outline"
+              label="Show route overview"
+              onPress={() => roam.navigator.setCamera("OVERVIEW")}
+            />
+          )}
           <IconButton
             icon="locate-outline"
             label="Recenter map on your location"
@@ -169,6 +178,7 @@ export default function MapScreen() {
               )
                 roam.retry();
               setRecenter((value) => value + 1);
+              roam.navigator.setCamera("FOLLOW");
             }}
           />
         </View>

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { rankRoutePlaces, sampleAhead } from "../services/routeAware";
-import { distanceBetween, projectOntoRoute } from "../utils/geo";
+import { rankRoutePlaces, sampleAhead } from "../src/services/routeAware";
+import { distanceBetween, projectOntoRoute } from "../src/utils/geo";
 import { origin, routeFor, stop } from "./fixtures";
 
 test("route search samples ahead and deduplicates short-route endpoints", () => {

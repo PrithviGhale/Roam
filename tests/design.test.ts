@@ -5,8 +5,8 @@ import {
   phoneLayout,
   overlayReducer,
   type MapOverlay,
-} from "../design/layout";
-import { palettes } from "../design/tokens";
+} from "../src/design/layout";
+import { palettes } from "../src/design/tokens";
 import { destination, routeFor } from "./fixtures";
 test("planning and driving require a started verified trip with route", () => {
   assert.equal(

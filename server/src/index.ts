@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { continuationSchema, turnSchema } from "../../shared/assistant";
-import { ServiceError } from "../../services/errors";
+import { ServiceError } from "../../src/services/errors";
 import { createGenerate, runRound, type Generate } from "./gemini";
 import { googleRequest, proxyGoogle } from "./google";
 import { authorize, type UserTokenVerifier } from "./auth";

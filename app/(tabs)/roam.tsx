@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { router } from "expo-router";
 import { KeyboardAvoidingView, Platform } from "react-native";
-import { Page } from "../../components/Page";
-import { RoamAssistant } from "../../components/RoamAssistant";
-import { PlacesSheet } from "../../components/PlacesSheet";
-import { useRoam } from "../../contexts/RoamProvider";
-import { useAssistant } from "../../contexts/AssistantProvider";
-import type { PlaceCategory } from "../../types/domain";
+import { Page } from "../../src/components/Page";
+import { RoamAssistant } from "../../src/components/RoamAssistant";
+import { PlacesSheet } from "../../src/components/PlacesSheet";
+import { useRoam } from "../../src/contexts/RoamProvider";
+import { useAssistant } from "../../src/contexts/AssistantProvider";
+import type { PlaceCategory } from "../../src/types/domain";
 
 export default function AssistantScreen() {
   const { setDestination } = useRoam();

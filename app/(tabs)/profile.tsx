@@ -1,12 +1,12 @@
 import { Pressable, Switch, Text, View } from "react-native";
 import { router } from "expo-router";
-import { Page } from "../../components/Page";
-import { Button, Eyebrow, Panel } from "../../components/ui";
-import { useTheme } from "../../themes/ThemeProvider";
-import { useAssistant } from "../../contexts/AssistantProvider";
-import { LocationNotice } from "../../components/LocationNotice";
-import { space, radius, type } from "../../design/tokens";
-import { wakeRequirement } from "../../services/voice/types";
+import { Page } from "../../src/components/Page";
+import { Button, Eyebrow, Panel } from "../../src/components/ui";
+import { useTheme } from "../../src/themes/ThemeProvider";
+import { useAssistant } from "../../src/contexts/AssistantProvider";
+import { LocationNotice } from "../../src/components/LocationNotice";
+import { space, radius, type } from "../../src/design/tokens";
+import { wakeRequirement } from "../../src/services/voice/types";
 function Setting({
   title,
   detail,
@@ -174,8 +174,11 @@ export default function ProfileScreen() {
           </Button>
         </View>
       )}
+      <Button secondary onPress={() => router.push("/licenses")}>
+        Maps licenses
+      </Button>
       <Text style={{ ...type.small, color: colors.muted }}>
-        ROAM 0.6.0 · Your AI for the road.
+        ROAM 0.7.0 · Your AI for the road.
       </Text>
     </Page>
   );

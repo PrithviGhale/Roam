@@ -4,25 +4,25 @@ import {
   DetourService,
   compareRoutes,
   detourInsertionIndex,
-} from "../services/detours";
+} from "../src/services/detours";
 import {
   rankRecommendations,
   recommendationScore,
-} from "../services/routeAware";
-import { createTripTools } from "../services/tools";
-import { RouteDeviationMonitor } from "../services/routeTracking";
-import { TripController } from "../services/tripController";
-import { tripProgress } from "../utils/tripProgress";
-import { arrivalTimestamp, timeAheadPoint } from "../utils/routeTiming";
-import { buildContext, placeFact } from "../services/assistant/context";
+} from "../src/services/routeAware";
+import { createTripTools } from "../src/services/tools";
+import { RouteDeviationMonitor } from "../src/services/routeTracking";
+import { TripController } from "../src/services/tripController";
+import { tripProgress } from "../src/utils/tripProgress";
+import { arrivalTimestamp, timeAheadPoint } from "../src/utils/routeTiming";
+import { buildContext, placeFact } from "../src/services/assistant/context";
 import {
   createDiagnosticClient,
   diagnosticFailure,
-} from "../services/diagnostics";
-import { demoPlacesService } from "../services/demoPlaces";
-import { AssistantEngine } from "../services/assistant/engine";
+} from "../src/services/diagnostics";
+import { demoPlacesService } from "../src/services/demoPlaces";
+import { AssistantEngine } from "../src/services/assistant/engine";
 import { toolSchemas, type AssistantResponse } from "../shared/assistant";
-import type { ActiveTrip, Place, Route, RoutesService } from "../types/domain";
+import type { ActiveTrip, Place, Route, RoutesService } from "../src/types/domain";
 import { destination, stop, origin, routeFor, deferred } from "./fixtures";
 
 const now = Date.parse("2026-10-06T12:00:00Z");

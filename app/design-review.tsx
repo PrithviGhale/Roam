@@ -1,14 +1,16 @@
 import { Redirect, router } from "expo-router";
 import { Text, View, useWindowDimensions } from "react-native";
-import { Page } from "../components/Page";
-import { Button, Eyebrow } from "../components/ui";
-import { RoamPulse } from "../components/RoamPulse";
-import { StatusCard } from "../components/StatusCard";
-import { PlaceList, SuggestionsList } from "../components/PlaceList";
-import { useTheme } from "../themes/ThemeProvider";
-import type { VoicePhase } from "../services/voice/types";
-import type { Place } from "../types/domain";
-import { space, type } from "../design/tokens";
+import { Page } from "../src/components/Page";
+import { Button, Eyebrow } from "../src/components/ui";
+import { RoamPulse } from "../src/components/RoamPulse";
+import { StatusCard } from "../src/components/StatusCard";
+import { PlaceList, SuggestionsList } from "../src/components/PlaceList";
+import { useTheme } from "../src/themes/ThemeProvider";
+import type { VoicePhase } from "../src/services/voice/types";
+import type { Place } from "../src/types/domain";
+import { space, type } from "../src/design/tokens";
+import { ManeuverGlyph } from "../src/components/ManeuverRail";
+import { maneuvers } from "../modules/roam-navigation/src/types";
 const phases: VoicePhase[] = [
   "inactive",
   "armed",
@@ -45,6 +47,15 @@ function Review() {
       <Button secondary onPress={() => router.back()}>
         Back
       </Button>
+      <Eyebrow>MANEUVERS · REVIEW FIXTURES</Eyebrow>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 16 }}>
+        {maneuvers.map((m) => (
+          <View key={m} style={{ width: 96, gap: 6 }}>
+            <ManeuverGlyph maneuver={m} color={colors.accent} />
+            <Text style={{ color: colors.text, fontSize: 12 }}>{m}</Text>
+          </View>
+        ))}
+      </View>
       <Button
         secondary
         onPress={() => setTheme(theme.id === "dark" ? "light" : "dark")}

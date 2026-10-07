@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatDistance, formatDuration } from "../utils/format";
-import { decodePolyline } from "../utils/polyline";
+import { formatDistance, formatDuration } from "../src/utils/format";
+import { decodePolyline } from "../src/utils/polyline";
 
 test("US distance and duration formatting handles boundaries and missing data", () => {
   assert.equal(formatDistance(1609.344), "1.0 mi");

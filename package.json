@@ -1,6 +1,6 @@
 {
   "name": "roam",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "workspaces": [
     "server"
@@ -17,7 +17,9 @@
     "test": "tsx --test tests/*.test.ts",
     "check": "npm run typecheck && npm test && npm run check --workspace server",
     "server": "npm run dev --workspace server",
-    "server:build": "npm run build --workspace server"
+    "server:build": "npm run build --workspace server",
+    "native:prepare": "node scripts/prepare-navigation-sdk.mjs",
+    "eas-build-pre-install": "npm run native:prepare"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

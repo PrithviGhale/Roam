@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { TripController } from "../services/tripController";
-import { ServiceError } from "../services/errors";
-import type { Route, RoutesService } from "../types/domain";
+import { TripController } from "../src/services/tripController";
+import { ServiceError } from "../src/services/errors";
+import type { Route, RoutesService } from "../src/types/domain";
 import { deferred, destination, origin, routeFor, stop } from "./fixtures";
 
 test("select, start, add/remove stops and cancel form one consistent trip", async () => {

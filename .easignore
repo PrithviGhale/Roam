@@ -26,3 +26,9 @@ android/
 *.pem
 *.key
 *.cer
+
+.native-cache/
+modules/roam-navigation/ios/vendor/
+!modules/roam-navigation/ios/
+!modules/roam-navigation/ios/*.swift
+!modules/roam-navigation/ios/*.podspec

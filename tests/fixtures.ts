@@ -1,4 +1,4 @@
-import type { Coordinate, Place, Route } from "../types/domain";
+import type { Coordinate, Place, Route } from "../src/types/domain";
 
 export const origin: Coordinate = { latitude: 0, longitude: 0 };
 export const destination: Place = {

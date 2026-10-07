@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { router } from "expo-router";
 import { Text, View } from "react-native";
-import { Page } from "../../components/Page";
-import { DriveBar } from "../../components/DriveBar";
-import { Button, Eyebrow, IconButton } from "../../components/ui";
-import { GoogleAttribution } from "../../components/GoogleAttribution";
-import { StatusCard } from "../../components/StatusCard";
-import { useTheme } from "../../themes/ThemeProvider";
-import { useRoam } from "../../contexts/RoamProvider";
-import { space, radius, type } from "../../design/tokens";
+import { Page } from "../../src/components/Page";
+import { DriveBar } from "../../src/components/DriveBar";
+import { Button, Eyebrow, IconButton } from "../../src/components/ui";
+import { GoogleAttribution } from "../../src/components/GoogleAttribution";
+import { StatusCard } from "../../src/components/StatusCard";
+import { useTheme } from "../../src/themes/ThemeProvider";
+import { useRoam } from "../../src/contexts/RoamProvider";
+import { space, radius, type } from "../../src/design/tokens";
 export default function TripsScreen() {
   const {
     theme: { colors },
@@ -23,6 +23,8 @@ export default function TripsScreen() {
     restoreTripPlan,
     discardRecovery,
     fresh,
+    navigation,
+    continueNavigationStop,
   } = useRoam();
   const trip = tripState.trip;
   const [busy, setBusy] = useState(false);
@@ -132,9 +134,17 @@ export default function TripsScreen() {
                     trip.startedAt && (
                       <Button
                         secondary
-                        disabled={blocked}
+                        disabled={
+                          blocked ||
+                          (navigation.mode === "native" &&
+                            navigation.waypointId !== stop.id)
+                        }
                         onPress={() =>
-                          void perform(() => markStopVisited(stop.id))
+                          void perform(() =>
+                            navigation.mode === "native"
+                              ? continueNavigationStop()
+                              : markStopVisited(stop.id),
+                          )
                         }
                       >
                         Mark visited

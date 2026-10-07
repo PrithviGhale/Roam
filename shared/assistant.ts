@@ -116,6 +116,16 @@ export const contextSchema = z
     stops: z.array(z.object({ id: text, name: text }).strict()).max(5),
     routeAvailable: z.boolean(),
     tripStarted: z.boolean(),
+    navigation: z
+      .object({
+        nextInstruction: z.string().max(500),
+        distanceToManeuverMeters: z.number().finite().nonnegative(),
+        remainingDistanceMeters: z.number().finite().nonnegative(),
+        remainingDurationSeconds: z.number().finite().nonnegative(),
+      })
+      .strict()
+      .nullable()
+      .optional(),
     distanceMeters: z.number().finite().min(0).nullable(),
     etaSeconds: z.number().finite().min(0).nullable(),
     calculatedAt: z.string().max(40).nullable(),

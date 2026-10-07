@@ -1,6 +1,6 @@
 import { Tabs } from "expo-router";
-import { useTheme } from "../../themes/ThemeProvider";
-import { RoamTabBar } from "../../components/RoamTabBar";
+import { useTheme } from "../../src/themes/ThemeProvider";
+import { RoamTabBar } from "../../src/components/RoamTabBar";
 export default function TabLayout() {
   const {
     theme: { colors },

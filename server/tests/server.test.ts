@@ -11,7 +11,7 @@ import {
   unseal,
   type Generate,
 } from "../src/gemini";
-import { buildContext } from "../../services/assistant/context";
+import { buildContext } from "../../src/services/assistant/context";
 import { type AssistantTurn } from "../../shared/assistant";
 import { authorize } from "../src/auth";
 import { lowerLimit } from "../src/costControls";

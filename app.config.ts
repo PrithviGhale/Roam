@@ -5,7 +5,7 @@ import { join } from "node:path";
 const config: ExpoConfig = {
   name: "ROAM",
   slug: "roam",
-  version: "0.6.0",
+  version: "0.7.0",
   orientation: "portrait",
   scheme: "roam",
   userInterfaceStyle: "automatic",
@@ -29,10 +29,11 @@ const config: ExpoConfig = {
     "expo-status-bar",
     "expo-secure-store",
     "./plugins/withRoamWakeWord",
+    "./plugins/withRoamNavigation",
     [
       "react-native-maps",
       {
-        iosGoogleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_IOS_KEY,
+        // iOS uses the local module and current Google SDK, avoiding the maps pod pin.
         androidGoogleMapsApiKey:
           process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY,
       },

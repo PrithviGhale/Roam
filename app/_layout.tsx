@@ -4,6 +4,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ThemeProvider, useTheme } from "../themes/ThemeProvider";
 import { RoamProvider } from "../contexts/RoamProvider";
 import { AssistantProvider } from "../contexts/AssistantProvider";
+import { PowerProvider } from "../contexts/PowerProvider";
 
 export { ErrorBoundary } from "expo-router";
 
@@ -27,11 +28,13 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <RoamProvider>
-          <AssistantProvider>
-            <RootNavigator />
-          </AssistantProvider>
-        </RoamProvider>
+        <PowerProvider>
+          <RoamProvider>
+            <AssistantProvider>
+              <RootNavigator />
+            </AssistantProvider>
+          </RoamProvider>
+        </PowerProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

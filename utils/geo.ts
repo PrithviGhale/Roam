@@ -46,6 +46,11 @@ export interface RouteProjection {
 export function projectOntoRoute(
   point: Coordinate,
   geometry: Coordinate[],
+  hint?: {
+    progressMeters: number;
+    backwardMeters: number;
+    forwardMeters: number;
+  },
 ): RouteProjection | null {
   if (geometry.length < 2) return null;
   const lengths = routeLengths(geometry);
@@ -64,7 +69,29 @@ export function projectOntoRoute(
       : 0;
     const coordinate = interpolate(a, b, fraction),
       offsetMeters = distanceBetween(point, coordinate);
-    if (!best || offsetMeters < best.offsetMeters)
+    const progressMeters =
+      lengths[i - 1]! + (lengths[i]! - lengths[i - 1]!) * fraction;
+    if (
+      hint &&
+      (progressMeters < hint.progressMeters - hint.backwardMeters ||
+        progressMeters > hint.progressMeters + hint.forwardMeters)
+    )
+      continue;
+    const score =
+      offsetMeters +
+      (hint
+        ? Math.min(15, Math.abs(progressMeters - hint.progressMeters) * 0.05)
+        : 0);
+    const bestScore = best
+      ? best.offsetMeters +
+        (hint
+          ? Math.min(
+              15,
+              Math.abs(best.progressMeters - hint.progressMeters) * 0.05,
+            )
+          : 0)
+      : Infinity;
+    if (!best || score < bestScore)
       best = {
         progressMeters:
           lengths[i - 1]! + (lengths[i]! - lengths[i - 1]!) * fraction,

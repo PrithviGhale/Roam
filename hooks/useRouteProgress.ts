@@ -7,7 +7,7 @@ export function useRouteProgress() {
     coordinate,
     fresh,
     accuracy,
-    tripState: { trip },
+    tripState: { trip, progress },
   } = useRoam();
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -22,5 +22,11 @@ export function useRouteProgress() {
     fresh,
     Math.max(now, Date.now()),
     accuracy,
+    trip?.startedAt
+      ? progress?.route === trip.route &&
+        Date.now() - progress.timestamp <= 15000
+        ? progress.projection
+        : null
+      : undefined,
   );
 }

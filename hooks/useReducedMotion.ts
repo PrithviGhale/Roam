@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { AccessibilityInfo } from "react-native";
+import { useLowPower } from "../contexts/PowerProvider";
 export function useReducedMotion() {
+  const lowPower = useLowPower();
   const [reduced, setReduced] = useState(true);
   useEffect(() => {
     let active = true;
@@ -18,5 +20,5 @@ export function useReducedMotion() {
       listener.remove();
     };
   }, []);
-  return reduced;
+  return reduced || lowPower === true;
 }

@@ -79,6 +79,11 @@ export interface TripState {
   trip: ActiveTrip | null;
   status: "idle" | "loading" | "ready" | "error";
   error: string | null;
+  progress?: {
+    projection: import("../utils/geo").RouteProjection;
+    timestamp: number;
+    route: Route;
+  } | null;
   tracking?: {
     state: "onRoute" | "possiblyOffRoute" | "rerouting";
     error?: string;

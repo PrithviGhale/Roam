@@ -1,13 +1,13 @@
 {
   "name": "roam",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "workspaces": [
     "server"
   ],
   "main": "expo-router/entry",
   "scripts": {
-    "start": "expo start --go",
+    "start": "expo start --dev-client",
     "start:dev": "expo start --dev-client",
     "ios": "expo start --ios",
     "android": "expo start --android",
@@ -25,9 +25,11 @@
     "@picovoice/react-native-voice-processor": "1.2.3",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~57.0.27",
+    "expo-battery": "~57.0.3",
     "expo-constants": "~57.0.21",
     "expo-crypto": "~57.0.3",
     "expo-dev-client": "~57.0.19",
+    "expo-file-system": "~57.0.7",
     "expo-font": "~57.0.4",
     "expo-haptics": "~57.0.3",
     "expo-linking": "~57.0.12",

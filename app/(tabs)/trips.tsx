@@ -13,8 +13,17 @@ export default function TripsScreen() {
   const {
     theme: { colors },
   } = useTheme();
-  const { tripState, removeTripStop, cancelTrip, markStopVisited, retryRoute } =
-    useRoam();
+  const {
+    tripState,
+    removeTripStop,
+    cancelTrip,
+    markStopVisited,
+    retryRoute,
+    recoveredPlan,
+    restoreTripPlan,
+    discardRecovery,
+    fresh,
+  } = useRoam();
   const trip = tripState.trip;
   const [busy, setBusy] = useState(false);
   const blocked = busy || tripState.status === "loading";
@@ -36,6 +45,23 @@ export default function TripsScreen() {
           : "Choose somewhere worth going."
       }
     >
+      {!trip && recoveredPlan && (
+        <View style={{ gap: space.sm }}>
+          <StatusCard
+            title={`Recover trip to ${recoveredPlan.destination.name}`}
+            detail="Recalculate from fresh GPS, then tap Start trip. Previous routes, estimates and microphone sessions are not restored."
+          />
+          <Button
+            disabled={!fresh || busy}
+            onPress={() => void perform(restoreTripPlan)}
+          >
+            Recalculate saved plan
+          </Button>
+          <Button secondary onPress={discardRecovery}>
+            Discard saved plan
+          </Button>
+        </View>
+      )}
       {trip ? (
         <>
           <Eyebrow>{trip.startedAt ? "CURRENT TRIP" : "PLANNED ROUTE"}</Eyebrow>
@@ -155,8 +181,9 @@ export default function TripsScreen() {
             {trip.startedAt ? "End trip" : "Cancel route"}
           </Button>
           <Text style={{ ...type.small, color: colors.muted }}>
-            Visited stops are skipped on the next route update. Your journey
-            stays on this device for this session.
+            Visited stops are skipped on the next route update. Your journey can
+            be recovered on this device after a reload. Only the destination and
+            remaining stops are saved, for up to six hours.
           </Text>
         </>
       ) : (

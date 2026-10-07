@@ -1,9 +1,10 @@
-import Constants from "expo-constants";
 import { NativeModules, Platform } from "react-native";
+import { File, Paths } from "expo-file-system";
 import * as SecureStore from "expo-secure-store";
 import * as Speech from "expo-speech";
 import { speechInputModule } from "../speechInput";
-import type { CaptureEvents, VoicePorts } from "./types";
+import { WakeRuntime, VoiceSetupError } from "./WakeRuntime";
+import type { CaptureEvents, WakeAvailability } from "./types";
 
 const keyName = "roam.picovoice.access-key";
 export const wakeNativeAvailable = () =>
@@ -19,141 +20,210 @@ export async function saveWakeKey(key: string) {
     });
   else await SecureStore.deleteItemAsync(keyName);
 }
-export function nativeAudioPorts(): Pick<
-  VoicePorts,
-  "wake" | "speech" | "tts"
-> {
+export function nativeAudioPorts() {
   const recognition = speechInputModule();
-  let key: string | null = null;
-  let manager: Awaited<
-    ReturnType<
-      typeof import("@picovoice/porcupine-react-native").PorcupineManager.fromKeywordPaths
-    >
-  > | null = null;
   let events: CaptureEvents | null = null;
   let listeners: { remove(): void }[] = [];
   let speakingGeneration = 0;
-  const bundled = Constants.expoConfig?.extra?.roamWakeModelBundled === true;
+  let ttsActive = false;
+  let recognitionActive = false;
+  const modelExists = () => {
+    try {
+      const file = new File(Paths.bundle, "hey-roam_ios.ppn");
+      return file.exists && file.size > 0;
+    } catch {
+      return false;
+    }
+  };
+  const processor = () =>
+    (
+      require("@picovoice/react-native-voice-processor") as typeof import("@picovoice/react-native-voice-processor")
+    ).VoiceProcessor.instance;
+  const runtime = new WakeRuntime({
+    available: wakeNativeAvailable,
+    modelExists,
+    readKey: () => SecureStore.getItemAsync(keyName),
+    permission: () => processor().hasRecordAudioPermission(),
+    async create(key, sensitivity, detected, error) {
+      const { PorcupineManager } =
+        require("@picovoice/porcupine-react-native") as typeof import("@picovoice/porcupine-react-native");
+      return PorcupineManager.fromKeywordPaths(
+        key,
+        ["hey-roam_ios.ppn"],
+        detected,
+        error,
+        undefined,
+        "cpu",
+        [sensitivity],
+      );
+    },
+    async recoverStart() {
+      processor().clearFrameListeners();
+      processor().clearErrorListeners();
+      await processor().stop();
+    },
+  });
+  const stopWake = async () => {
+    await runtime.stop();
+    // Manager.start can fail before its private listening flag is set. Verify
+    // the shared recorder too; never hand off an orphaned processor microphone.
+    if (wakeNativeAvailable() && (await processor().isRecording())) {
+      processor().clearFrameListeners();
+      processor().clearErrorListeners();
+      await processor().stop();
+      if (await processor().isRecording())
+        throw new Error("Wake capture did not release audio.");
+    }
+  };
   const stopSpeech = async () => {
     events = null;
     listeners.forEach((listener) => listener.remove());
     listeners = [];
     if (!recognition) return;
     recognition.abort();
-    // Native end/abort is asynchronous. Do not hand off the microphone until inactive.
     for (let attempt = 0; attempt < 40; attempt++) {
-      if ((await recognition.getStateAsync()) === "inactive") return;
+      if ((await recognition.getStateAsync()) === "inactive") {
+        recognitionActive = false;
+        return;
+      }
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
     throw new Error("Speech capture did not release audio.");
   };
   return {
+    diagnostics: () => ({
+      ...runtime.diagnostics(),
+      recognitionActive,
+      ttsActive,
+    }),
+    inspect: () => runtime.inspect(),
+    setSensitivity: (value: number) => runtime.setSensitivity(value),
     wake: {
-      // Concurrent wake/TTS has not been validated on iOS hardware. Explicit stop
-      // and push-to-talk interruption remain available; never advertise barge-in.
       supportsBargeIn: false,
-      availability: () =>
-        !wakeNativeAvailable()
-          ? "development-build"
-          : bundled
-            ? "ready"
-            : "setup-required",
-      async start(detected, error, active = () => true) {
-        if (!wakeNativeAvailable() || !bundled)
-          throw new Error("Wake setup is incomplete.");
-        const { VoiceProcessor } =
-          require("@picovoice/react-native-voice-processor") as typeof import("@picovoice/react-native-voice-processor");
-        if (!(await VoiceProcessor.instance.hasRecordAudioPermission()))
-          throw new Error("Microphone permission is required.");
-        if (!active()) return;
-        key = await SecureStore.getItemAsync(keyName);
-        if (!key) throw new Error("Wake setup is incomplete.");
-        if (!manager) {
-          const { PorcupineManager } =
-            require("@picovoice/porcupine-react-native") as typeof import("@picovoice/porcupine-react-native");
-          manager = await PorcupineManager.fromKeywordPaths(
-            key,
-            ["hey-roam_ios.ppn"],
-            detected,
-            error,
-            undefined,
-            "cpu",
-            [0.5],
-          );
-        }
-        if (!active()) return;
-        try {
-          await manager.start();
-        } catch (failure) {
-          // The SDK adds listeners before start. Stop the shared processor even
-          // when manager.start fails before its internal listening flag is set.
-          const { VoiceProcessor } =
-            require("@picovoice/react-native-voice-processor") as typeof import("@picovoice/react-native-voice-processor");
-          VoiceProcessor.instance.clearFrameListeners();
-          VoiceProcessor.instance.clearErrorListeners();
-          await VoiceProcessor.instance.stop();
-          manager.delete();
-          manager = null;
-          throw failure;
-        }
-      },
-      async stop() {
-        await manager?.stop();
-      },
-      async dispose() {
-        await manager?.stop();
-        manager?.delete();
-        manager = null;
-        key = null;
+      // Build metadata is not evidence of a resource in an installed binary.
+      availability: (): WakeAvailability =>
+        !wakeNativeAvailable() ? "development-build" : "ready",
+      start: (
+        detected: () => void,
+        error: () => void,
+        active?: () => boolean,
+      ) => runtime.start(detected, error, active),
+      stop: stopWake,
+      dispose: async () => {
+        await stopWake();
+        await runtime.dispose();
       },
     },
     speech: {
       available: !!recognition,
-      async start(next) {
+      async start(next: CaptureEvents) {
         if (!recognition)
           throw new Error("Speech input requires the development build.");
         const permission = await recognition.requestPermissionsAsync();
         if (!next.active()) return;
         if (!permission.granted || !recognition.isRecognitionAvailable())
-          throw new Error("Speech permission is unavailable.");
+          throw new VoiceSetupError(
+            "permission",
+            "Allow microphone and speech recognition in iPhone Settings to speak. You can continue with text.",
+          );
         events = next;
-        listeners = [
-          recognition.addListener("result", (event) =>
-            events?.result(event.results[0]?.transcript ?? "", event.isFinal),
-          ),
-          recognition.addListener("end", () => events?.end()),
-          recognition.addListener("error", () => events?.error()),
-        ];
-        recognition.start({
-          lang: "en-US",
-          interimResults: true,
-          continuous: false,
-          recordingOptions: { persist: false },
+        // Resolve only on the native start event. Permission prompts and a queued
+        // native start must never make Pulse claim it is already listening.
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(
+            () => reject(new Error("Recognition startup timed out.")),
+            5000,
+          );
+          listeners = [
+            recognition.addListener("start", () => {
+              clearTimeout(timeout);
+              if (!next.active()) {
+                reject(new Error("Capture canceled."));
+                return;
+              }
+              recognitionActive = true;
+              resolve();
+            }),
+            recognition.addListener("result", (event) =>
+              events?.result(event.results[0]?.transcript ?? "", event.isFinal),
+            ),
+            recognition.addListener("end", () => {
+              clearTimeout(timeout);
+              recognitionActive = false;
+              reject(new Error("Recognition ended before startup."));
+              events?.end();
+            }),
+            recognition.addListener("error", (event) => {
+              clearTimeout(timeout);
+              const started = recognitionActive;
+              recognitionActive = false;
+              reject(new Error("Recognition failed."));
+              if (started && event.error === "no-speech") events?.end();
+              else events?.error();
+            }),
+          ];
+          try {
+            recognition.start({
+              lang: "en-US",
+              interimResults: true,
+              continuous: false,
+              recordingOptions: { persist: false },
+            });
+          } catch {
+            clearTimeout(timeout);
+            reject(new Error("Recognition failed."));
+          }
+        }).catch(async (failure) => {
+          await stopSpeech();
+          throw failure;
         });
       },
       stop: stopSpeech,
     },
     tts: {
-      speak(text, volume, done, error) {
+      reportsStart: true,
+      speak(
+        text: string,
+        volume: number,
+        done: () => void,
+        error: () => void,
+        started = () => {},
+      ) {
         const generation = ++speakingGeneration;
         Speech.speak(text, {
           language: "en-US",
           rate: 0.95,
           volume,
+          onStart: () => {
+            if (generation === speakingGeneration) {
+              ttsActive = true;
+              started();
+            }
+          },
           onDone: () => {
-            if (generation === speakingGeneration) done();
+            if (generation === speakingGeneration) {
+              ttsActive = false;
+              done();
+            }
           },
           onStopped: () => {
-            if (generation === speakingGeneration) error();
+            if (generation === speakingGeneration) {
+              ttsActive = false;
+              error();
+            }
           },
           onError: () => {
-            if (generation === speakingGeneration) error();
+            if (generation === speakingGeneration) {
+              ttsActive = false;
+              error();
+            }
           },
         });
       },
       async stop() {
         speakingGeneration++;
         await Speech.stop();
+        ttsActive = false;
       },
     },
   };

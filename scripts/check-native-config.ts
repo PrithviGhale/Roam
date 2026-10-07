@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { getPrebuildConfigAsync } from "@expo/prebuild-config";
 import { compileModsAsync } from "expo/config-plugins";
 async function main() {
@@ -19,14 +20,19 @@ async function main() {
   assert.ok(!plist.UIBackgroundModes?.includes("audio"));
   assert.ok(!plist.UIBackgroundModes?.includes("location"));
   assert.equal(exp.sdkVersion, "57.0.0");
-  assert.equal(exp.version, "0.5.0");
+  assert.equal(exp.version, "0.6.0");
   assert.equal(exp.ios?.bundleIdentifier, "com.prithvighale.roam");
+  assert.equal(exp.orientation, "portrait");
+  const eas = JSON.parse(readFileSync("eas.json", "utf8"));
+  assert.equal(eas.build.development.developmentClient, true);
+  assert.equal(eas.build.development.distribution, "internal");
+  assert.equal(eas.build.development.environment, "development");
   const serialized = JSON.stringify(exp.extra ?? {}).toLowerCase();
   assert.ok(
     !serialized.includes("accesskey") && !serialized.includes("access-key"),
   );
   console.log(
-    "Native config passed: SDK 57 / V0.5, microphone/speech/foreground location, no background audio/location, no wake AccessKey in public extra.",
+    "Native config passed: SDK 57 / V0.6, microphone/speech/foreground location, no background audio/location, no wake AccessKey in public extra.",
   );
 }
 void main().catch(() => {

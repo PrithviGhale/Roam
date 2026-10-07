@@ -5,7 +5,7 @@ import { join } from "node:path";
 const config: ExpoConfig = {
   name: "ROAM",
   slug: "roam",
-  version: "0.5.0",
+  version: "0.6.0",
   orientation: "portrait",
   scheme: "roam",
   userInterfaceStyle: "automatic",

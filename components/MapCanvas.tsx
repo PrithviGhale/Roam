@@ -121,6 +121,13 @@ export function MapCanvas({
       showsUserLocation={false}
       showsMyLocationButton={false}
       toolbarEnabled={false}
+      legalLabelInsets={{
+        top: topInset,
+        left: 15,
+        right: 15,
+        bottom: bottomInset,
+      }}
+      appleLogoInsets={{ top: 0, left: 15, right: 0, bottom: bottomInset }}
       mapPadding={{ top: topInset, right: 15, bottom: bottomInset, left: 15 }}
     >
       {google && route && (
@@ -168,7 +175,11 @@ export function MapCanvas({
                 justifyContent: "center",
               }}
             >
-              <Icon name="navigate" size={21} color={theme.colors.onAccent} />
+              <Icon
+                name={heading === null ? "ellipse" : "navigate"}
+                size={21}
+                color={theme.colors.onAccent}
+              />
             </View>
           </View>
         </Marker>

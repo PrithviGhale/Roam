@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Text, TextInput, View } from "react-native";
+import { AppState, Platform, Text, TextInput, View } from "react-native";
+import Constants from "expo-constants";
+import { useLowPower } from "../contexts/PowerProvider";
+import { useRouteProgress } from "../hooks/useRouteProgress";
 import { Redirect, router, useFocusEffect } from "expo-router";
 import * as Location from "expo-location";
 import * as Speech from "expo-speech";
@@ -30,6 +33,17 @@ function DevDiagnostics() {
   } = useTheme();
   const roam = useRoam();
   const assistant = useAssistant();
+  const lowPower = useLowPower();
+  const progress = useRouteProgress();
+  const [clock, setClock] = useState(Date.now());
+  const [observe, setObserve] = useState(false);
+  const [diagnosticTts, setDiagnosticTts] = useState(false);
+  const voice = assistant.voiceDiagnostics();
+  const navigation = roam.navigationDiagnostics();
+  useEffect(() => {
+    const timer = setInterval(() => setClock(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   const [wakeKey, setWakeKey] = useState("");
   const [wakeNote, setWakeNote] = useState<string | null>(null);
   const [recognition] = useState(speechInputModule);
@@ -58,6 +72,7 @@ function DevDiagnostics() {
     version = useRef(0),
     work = useRef(false);
   const capturing = useRef(false);
+  const playback = useRef(false);
   const request = useRef<AbortController | null>(null),
     timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const update = (name: string, value: DiagnosticResult) => {
@@ -65,14 +80,19 @@ function DevDiagnostics() {
   };
   const stop = useCallback(() => {
     version.current++;
+    const ownedCapture = capturing.current;
     capturing.current = false;
     request.current?.abort();
     if (timer.current) clearTimeout(timer.current);
     try {
-      recognition?.abort();
+      if (ownedCapture) recognition?.abort();
     } catch {}
-    void Speech.stop().catch(() => {});
+    if (playback.current) {
+      playback.current = false;
+      void Speech.stop().catch(() => {});
+    }
     if (mounted.current) {
+      setDiagnosticTts(false);
       setListening(false);
       setBusy(false);
       setChecks((previous) =>
@@ -90,12 +110,12 @@ function DevDiagnostics() {
   }, [recognition]);
   useFocusEffect(
     useCallback(() => {
-      void assistant.suspendVoice(true);
+      void assistant.suspendVoice(!observe);
       return () => {
-        stop();
+        if (!observe) stop();
         void assistant.suspendVoice(false);
       };
-    }, [assistant.suspendVoice, stop]),
+    }, [assistant.suspendVoice, stop, observe]),
   );
   useEffect(() => {
     mounted.current = true;
@@ -104,6 +124,9 @@ function DevDiagnostics() {
     });
     const listeners = recognition
       ? [
+          recognition.addListener("start", () => {
+            if (mounted.current && capturing.current) setListening(true);
+          }),
           recognition.addListener("result", (event) => {
             if (!mounted.current || !capturing.current) return;
             const result = event.results[0];
@@ -155,6 +178,9 @@ function DevDiagnostics() {
         setVoiceError("Permission status could not be read.");
     }
   };
+  useEffect(() => {
+    void checkPermissions();
+  }, [recognition]);
   const network = async (
     name: "worker" | "authentication" | DiagnosticService,
   ) => {
@@ -193,9 +219,26 @@ function DevDiagnostics() {
     }
   };
   const startListening = async () => {
-    if (!recognition || work.current || listening) return;
-    if (!(await assistant.suspendVoice(true))) return;
-    if (!mounted.current || AppState.currentState !== "active") return;
+    if (
+      observe ||
+      !recognition ||
+      work.current ||
+      capturing.current ||
+      diagnosticTts
+    )
+      return;
+    work.current = true;
+    setBusy(true);
+    if (!(await assistant.suspendVoice(true))) {
+      work.current = false;
+      setBusy(false);
+      return;
+    }
+    if (!mounted.current || AppState.currentState !== "active") {
+      work.current = false;
+      if (mounted.current) setBusy(false);
+      return;
+    }
     stop();
     const attempt = version.current;
     work.current = true;
@@ -217,7 +260,6 @@ function DevDiagnostics() {
       }
       setTranscript("");
       setConfidence(null);
-      setListening(true);
       capturing.current = true;
       recognition.start({
         lang: "en-US",
@@ -243,10 +285,22 @@ function DevDiagnostics() {
     }
   };
   const testTts = async () => {
-    if (busy || listening) return;
-    if (!(await assistant.suspendVoice(true))) return;
-    if (!mounted.current || AppState.currentState !== "active") return;
+    if (observe || work.current || capturing.current || diagnosticTts) return;
+    work.current = true;
+    setBusy(true);
+    if (!(await assistant.suspendVoice(true))) {
+      work.current = false;
+      setBusy(false);
+      return;
+    }
+    if (!mounted.current || AppState.currentState !== "active") {
+      work.current = false;
+      if (mounted.current) setBusy(false);
+      return;
+    }
     stop();
+    work.current = true;
+    setBusy(true);
     const attempt = version.current;
     update("tts", { state: "checking", detail: "Checking voices…" });
     try {
@@ -263,9 +317,23 @@ function DevDiagnostics() {
           ? `${voices.length} system voices available. Confirm audible playback manually.`
           : "No system voices reported.",
       });
+      const finishPlayback = () => {
+        if (mounted.current && attempt === version.current) {
+          playback.current = false;
+          setDiagnosticTts(false);
+          setBusy(false);
+          work.current = false;
+          if (timer.current) clearTimeout(timer.current);
+        }
+      };
+      timer.current = setTimeout(stop, 45000);
+      playback.current = true;
       Speech.speak("ROAM voice check. Ready for the road.", {
         language: "en-US",
         onDone: () => {
+          finishPlayback();
+          if (mounted.current && attempt === version.current)
+            setDiagnosticTts(false);
           if (mounted.current && attempt === version.current)
             update("tts", {
               state: "connected",
@@ -273,11 +341,23 @@ function DevDiagnostics() {
             });
         },
         onError: () => {
+          finishPlayback();
+          if (mounted.current && attempt === version.current)
+            setDiagnosticTts(false);
           if (mounted.current && attempt === version.current)
             update("tts", { state: "unavailable", detail: "Playback failed." });
         },
+        onStopped: finishPlayback,
+        onStart: () => {
+          if (mounted.current && attempt === version.current)
+            setDiagnosticTts(true);
+        },
       });
     } catch {
+      if (mounted.current && attempt === version.current) {
+        setBusy(false);
+        work.current = false;
+      }
       update("tts", {
         state: "unavailable",
         detail: "System voices could not be queried.",
@@ -297,9 +377,104 @@ function DevDiagnostics() {
       <Button secondary onPress={() => router.back()}>
         Back
       </Button>
+      <Panel style={{ gap: 8 }}>
+        <Eyebrow>DEVICE / NATIVE BUILD</Eyebrow>
+        {line("OS", `${Platform.OS} ${Platform.Version}`)}
+        {line(
+          "App / build",
+          `${Constants.nativeAppVersion ?? Constants.expoConfig?.version ?? "unknown"} / ${Constants.nativeBuildVersion ?? "not reported"}`,
+        )}
+        {line(
+          "Expo SDK / environment",
+          `${Constants.expoConfig?.sdkVersion ?? "57.0.0"} / ${Constants.executionEnvironment}`,
+        )}
+        {line(
+          "Low Power Mode",
+          lowPower === null
+            ? "unavailable"
+            : lowPower
+              ? "enabled · animations reduced"
+              : "off",
+        )}
+        <Button
+          secondary
+          disabled={busy || capturing.current || diagnosticTts}
+          onPress={() => setObserve((value) => !value)}
+        >
+          {observe
+            ? "Pause session for isolated checks"
+            : "Observe active trip audio"}
+        </Button>
+        {line(
+          "Audio owner",
+          listening
+            ? "diagnostic recognition"
+            : diagnosticTts
+              ? "diagnostic TTS"
+              : voice.audioOwner,
+        )}
+        {line(
+          "TTS / recognition active",
+          `${voice.native.ttsActive || diagnosticTts} / ${voice.native.recognitionActive || listening}`,
+        )}
+        <Text style={{ color: colors.muted }}>
+          Observation allows normal trip voice. Pause before isolated
+          microphone/TTS checks.
+        </Text>
+      </Panel>
       <Panel style={{ gap: 12 }}>
         <Eyebrow>HEY ROAM · DEVICE SETUP</Eyebrow>
         {line("Native/model availability", assistant.wakeAvailability)}
+        {line(
+          "Installed wake model found",
+          String(voice.native.modelFound ?? "not checked"),
+        )}
+        {line(
+          "Picovoice AccessKey",
+          voice.native.accessKeyConfigured === null
+            ? "not checked"
+            : voice.native.accessKeyConfigured
+              ? "configured"
+              : "missing",
+        )}
+        {line(
+          "Porcupine initialized / state",
+          `${voice.native.initialized} / ${voice.native.state}`,
+        )}
+        {line("Wake failure", voice.native.failure ?? "none")}
+        {line("Wake armed", String(assistant.voice.wakeActive))}
+        {line("Sensitivity (session only)", String(voice.native.sensitivity))}
+        <View style={{ gap: 8 }}>
+          {[0.35, 0.5, 0.65].map((value) => (
+            <Button
+              key={value}
+              secondary
+              disabled={observe || busy || listening}
+              onPress={() => {
+                void assistant
+                  .setWakeSensitivity(value)
+                  .then(() => setWakeNote(`Sensitivity set to ${value}.`))
+                  .catch(() => setWakeNote("Could not change sensitivity."));
+              }}
+            >
+              Sensitivity {value}
+              {value === 0.5 ? " · default" : ""}
+            </Button>
+          ))}
+        </View>
+        {line(
+          "Successful voice commands / canceled wakes / empty wakes",
+          `${voice.voiceCommands} / ${voice.canceledWakeSessions} / ${voice.emptyWakeSessions}`,
+        )}
+        {line(
+          "Recognition / TTS seconds (session)",
+          `${Math.round(voice.recognitionMs / 1000)} / ${Math.round(voice.ttsMs / 1000)}`,
+        )}
+        {line(
+          "Last assistant transcript",
+          assistant.messages.findLast((message) => message.role === "user")
+            ?.text ?? "none",
+        )}
         {line(
           "Wake active seconds (RAM only)",
           String(Math.round(assistant.voiceDiagnostics().wakeActiveMs / 1000)),
@@ -344,7 +519,11 @@ function DevDiagnostics() {
           secondary
           disabled={
             assistant.wakeAvailability === "development-build" ||
-            !wakeKey.trim()
+            !wakeKey.trim() ||
+            observe ||
+            busy ||
+            capturing.current ||
+            diagnosticTts
           }
           onPress={() => {
             void assistant
@@ -367,8 +546,10 @@ function DevDiagnostics() {
         <Button
           secondary
           disabled={
+            observe ||
             busy ||
-            listening ||
+            capturing.current ||
+            diagnosticTts ||
             assistant.wakeAvailability === "development-build"
           }
           onPress={() => {
@@ -387,6 +568,20 @@ function DevDiagnostics() {
       <Panel style={{ gap: 8 }}>
         <Eyebrow>FOREGROUND GPS</Eyebrow>
         {line("Permission", permissions.location)}
+        {line(
+          "GPS session seconds",
+          String(Math.round(roam.gpsSessionMs / 1000)),
+        )}
+        {line(
+          "Fix age seconds",
+          roam.timestamp === null
+            ? "unavailable"
+            : String(Math.max(0, Math.round((clock - roam.timestamp) / 1000))),
+        )}
+        {line(
+          "Displayed speed MPH",
+          roam.speedMph === null ? "unavailable" : String(roam.speedMph),
+        )}
         {line(
           "GPS",
           `${roam.status}${roam.fresh ? " · fresh" : " · stale/unavailable"}`,
@@ -426,6 +621,45 @@ function DevDiagnostics() {
         <Button secondary onPress={() => void checkPermissions()}>
           Read permissions
         </Button>
+      </Panel>
+      <Panel style={{ gap: 8 }}>
+        <Eyebrow>NAVIGATION / SESSION EVENTS</Eyebrow>
+        {line(
+          "Started / route loaded",
+          `${!!roam.tripState.trip?.startedAt} / ${!!roam.tripState.trip?.route}`,
+        )}
+        {line(
+          "Progress",
+          progress?.estimated
+            ? `${progress.percentageCompleted.toFixed(1)}% · GPS estimate`
+            : "unavailable / last route snapshot",
+        )}
+        {line(
+          "Distance from route",
+          navigation.distanceFromRoute === null
+            ? "unavailable"
+            : `${Math.round(navigation.distanceFromRoute)} m`,
+        )}
+        {line(
+          "Off-route samples / cooldown seconds",
+          `${navigation.offRouteSamples} / ${Math.ceil(navigation.cooldownMs / 1000)}`,
+        )}
+        {line("Last reroute reason", navigation.lastRerouteReason ?? "none")}
+        {voice.events
+          .slice()
+          .reverse()
+          .map((entry, index) => (
+            <Text
+              key={`${entry.timestamp}-${index}`}
+              style={{ color: colors.muted, fontSize: 12 }}
+            >
+              {new Date(entry.timestamp).toLocaleTimeString()} {entry.event}
+            </Text>
+          ))}
+        <Text style={{ color: colors.muted }}>
+          Latest 80 event labels in memory. No keys, microphone content or
+          transcripts in the event log; no upload.
+        </Text>
       </Panel>
       <Panel style={{ gap: 12 }}>
         <Eyebrow>NETWORK · NO PHONE GPS SENT</Eyebrow>
@@ -477,14 +711,16 @@ function DevDiagnostics() {
           <Text style={{ color: colors.danger }}>{voiceError}</Text>
         )}
         <Button
-          disabled={!recognition || busy || listening}
+          disabled={
+            observe || !recognition || busy || listening || diagnosticTts
+          }
           onPress={() => void startListening()}
         >
           Start listening
         </Button>
         <Button
           secondary
-          disabled={!listening}
+          disabled={!listening && !capturing.current}
           onPress={() => {
             try {
               recognition?.stop();
@@ -498,7 +734,7 @@ function DevDiagnostics() {
         {line("TTS", `${checks.tts!.state} · ${checks.tts!.detail}`)}
         <Button
           secondary
-          disabled={busy || listening}
+          disabled={observe || busy || listening || diagnosticTts}
           onPress={() => void testTts()}
         >
           Test read-aloud

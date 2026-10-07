@@ -129,6 +129,38 @@ test("registry has only allowed tools and rejects malformed/extra arguments", ()
     false,
   );
 });
+test("retry metadata distinguishes no action, failed action and completed action despite AI failure", async () => {
+  const conversational = await setup([new Error("offline")]);
+  assert.equal(
+    (await conversational.engine.send("ETA", [])).retryKind,
+    "conversation",
+  );
+  const failed = await setup([
+    tool("searchCoffee"),
+    final(),
+    tool("addTripStop", { resultIndex: 2 }),
+    final(),
+  ]);
+  await failed.engine.send("Coffee", []);
+  failed.fail();
+  const reply = await failed.engine.send("Add second", []);
+  assert.equal(reply.retryKind, "failed-action");
+  assert.equal(reply.error, true);
+  const success = await setup([
+    tool("searchCoffee"),
+    final(),
+    tool("addTripStop", { resultIndex: 2 }),
+    new Error("final AI offline"),
+    tool("addTripStop", { resultIndex: 2 }),
+    final(),
+  ]);
+  await success.engine.send("Coffee", []);
+  const done = await success.engine.send("Add second", []);
+  assert.equal(done.retryKind, "executed-action");
+  assert.ok(!done.error);
+  await success.engine.send("Add second", []);
+  assert.equal(success.trip.getSnapshot().trip!.stops.length, 1);
+});
 test("real search -> visible references -> add second; user ordinal beats model-selected ID", async () => {
   const s = await setup([
     tool("searchCoffee"),

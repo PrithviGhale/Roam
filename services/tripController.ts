@@ -12,6 +12,8 @@ import { LIMITS } from "../shared/limits";
 import { detourInsertionIndex } from "./detours";
 import { distanceBetween } from "../utils/geo";
 import { tripProgress } from "../utils/tripProgress";
+import { ProgressTracker } from "./progressTracker";
+import type { RecoveredPlan } from "./tripRecovery";
 
 export class TripController {
   private state: TripState = { trip: null, status: "idle", error: null };
@@ -19,6 +21,8 @@ export class TripController {
   private request: AbortController | null = null;
   private generation = 0;
   private deviation = new RouteDeviationMonitor();
+  private progress = new ProgressTracker();
+  diagnostics = () => this.deviation.diagnostics(this.now());
   private completedOnRoute = 0;
   private stopConfirmations = 0;
   private lastStopFix = 0;
@@ -35,10 +39,18 @@ export class TripController {
     };
   };
   private update(state: TripState) {
+    if (
+      state.trip?.route !== this.state.trip?.route &&
+      state.progress === undefined &&
+      this.state.progress !== undefined &&
+      state.trip
+    )
+      state = { ...state, progress: null };
     this.state = state;
     for (const listener of this.listeners) listener();
   }
   cancel = () => {
+    this.progress.reset();
     this.deviation.reset();
     this.completedOnRoute = this.stopConfirmations = this.lastStopFix = 0;
     this.generation++;
@@ -50,6 +62,15 @@ export class TripController {
     this.generation++;
     this.request?.abort();
     this.request = null;
+  };
+  restorePlan = async (plan: RecoveredPlan) => {
+    if (this.state.trip || !this.getOrigin()) return false;
+    await this.calculate({
+      destination: plan.destination,
+      stops: plan.stops.map((place) => ({ id: place.id, place })),
+      route: null,
+    });
+    return this.state.status === "ready";
   };
   selectDestination = async (destination: Place) => {
     if (
@@ -99,6 +120,10 @@ export class TripController {
       0,
       { id: place.id, place },
     );
+    if (trip.startedAt && trip.route) {
+      await this.applyStopsAtomic(trip, stops);
+      return;
+    }
     await this.calculate({
       ...trip,
       route: null,
@@ -113,6 +138,13 @@ export class TripController {
       !trip.stops.some((stop) => stop.id === id)
     )
       return;
+    if (trip.startedAt && trip.route) {
+      await this.applyStopsAtomic(
+        trip,
+        trip.stops.filter((stop) => stop.id !== id),
+      );
+      return;
+    }
     await this.calculate({
       ...trip,
       route: null,
@@ -129,12 +161,20 @@ export class TripController {
     let trip = this.state.trip;
     if (!trip?.startedAt || !trip.route || this.state.status !== "ready")
       return;
+    const projection = this.progress.observe(trip.route, fix, now);
+    this.update({
+      ...this.state,
+      progress: projection
+        ? { projection, timestamp: fix.timestamp, route: trip.route }
+        : null,
+    });
     const progress = tripProgress(
       trip,
       fix.coordinate,
       fix.fresh && now - fix.timestamp <= 15_000,
       now,
       fix.accuracy,
+      projection,
     );
     if (progress?.estimated)
       this.completedOnRoute = Math.max(
@@ -167,11 +207,17 @@ export class TripController {
     const result = this.deviation.observe(trip.route!, fix, now);
     if (this.state.tracking?.state !== result.state)
       this.update({ ...this.state, tracking: { state: result.state } });
-    if (result.reroute) void this.refreshAtomic(trip);
+    if (result.reroute)
+      void this.refreshAtomic(
+        trip,
+        undefined,
+        "Repeated accurate off-route fixes",
+      );
   };
   refreshAtomic = async (
     expected: ActiveTrip,
     signal?: AbortSignal,
+    reason = "Route refresh requested",
   ): Promise<boolean> => {
     const previous = this.state;
     if (
@@ -183,7 +229,7 @@ export class TripController {
       return false;
     const origin = this.getOrigin();
     if (!origin || !validCoordinate(origin)) return false;
-    this.deviation.markAttempt(this.now());
+    this.deviation.markAttempt(this.now(), reason);
     const generation = ++this.generation;
     this.request?.abort();
     const request = new AbortController();

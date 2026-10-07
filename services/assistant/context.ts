@@ -47,8 +47,16 @@ export function buildContext(
   pending: PendingAction | null,
   now = Date.now(),
   accuracy?: number | null,
+  trackedProjection?: import("../../utils/geo").RouteProjection | null,
 ): AssistantContext {
-  const progress = tripProgress(trip, location, fresh, now, accuracy);
+  const progress = tripProgress(
+    trip,
+    location,
+    fresh,
+    now,
+    accuracy,
+    trackedProjection,
+  );
   return {
     destination:
       trip?.destination.source === "verified"

@@ -28,6 +28,8 @@ import {
 } from "../services/voice/types";
 import { acknowledge } from "../services/haptics";
 import { tripMode } from "../design/layout";
+import { AssistantRetry } from "../services/assistant/retry";
+import type { ActiveTrip } from "../types/domain";
 import type { Message, Place, VoiceState } from "../types/domain";
 
 function useSession() {
@@ -52,6 +54,8 @@ function useSession() {
   const [settings, setSettings] = useState<VoiceSettings>(defaultVoiceSettings);
   const [loaded, setLoaded] = useState(false);
   const [cardPending, setCardPending] = useState(false);
+  const [retryVersion, setRetryVersion] = useState(0);
+  const retry = useRef(new AssistantRetry<ActiveTrip | null>());
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const engineRef = useRef<AssistantEngine | null>(null);
@@ -60,7 +64,10 @@ function useSession() {
       createAssistantTransport(googleConfiguration.proxyUrl, roamAccessToken),
       placesService,
       {
-        getSnapshot: () => roamRef.current.tripState,
+        getSnapshot: () => ({
+          ...roamRef.current.tripState,
+          progress: roamRef.current.tripState.progress ?? null,
+        }),
         applyStopsAtomic: (trip, stops, signal) =>
           roamRef.current.applyAssistantStops(trip, stops, signal),
         cancel: () => roamRef.current.cancelTrip(),
@@ -103,6 +110,7 @@ function useSession() {
         acknowledge,
         clearConfirmation: () => engineRef.current!.clearPendingConfirmation(),
         async assistant(input, signal, state) {
+          const context = roamRef.current.tripState.trip;
           const history = messagesRef.current;
           if (mounted.current)
             setMessages((previous) =>
@@ -139,7 +147,16 @@ function useSession() {
             });
             reply = { ...demo, spokenText: demo.text };
           }
-          if (!signal.aborted) append(reply);
+          if (!signal.aborted) {
+            retry.current.record(
+              input,
+              reply.retryKind ?? "conversation",
+              context,
+              !!reply.error,
+            );
+            setRetryVersion((value) => value + 1);
+            append(reply);
+          }
           return {
             ...reply,
             confirmation: engineRef.current!.hasPendingConfirmation(),
@@ -161,6 +178,7 @@ function useSession() {
       : null;
   useEffect(() => {
     controller.configure(settings, foreground, trip);
+    if (foreground) void audio.inspect().catch(() => {});
   }, [controller, settings, foreground, trip]);
   useEffect(() => {
     mounted.current = true;
@@ -230,7 +248,15 @@ function useSession() {
   );
   const state: VoiceState = cardPending
     ? "usingTool"
-    : ["armed", "inactive", "cooldown", "wakeDetected"].includes(voice.phase)
+    : [
+          "armed",
+          "inactive",
+          "cooldown",
+          "wakeDetected",
+          "initializing",
+          "preparing",
+          "speechPending",
+        ].includes(voice.phase)
       ? "idle"
       : (voice.phase as VoiceState);
   const addBusy = useRef(false);
@@ -303,7 +329,7 @@ function useSession() {
     send: (text: string, fromVoice = false) => controller.send(text, fromVoice),
     addPlace,
     toggleVoice: () => {
-      if (["listening", "transcribing", "speaking"].includes(voice.phase))
+      if (["listening", "transcribing", "preparing"].includes(voice.phase))
         void controller.cancel();
       else void controller.listen();
     },
@@ -312,15 +338,58 @@ function useSession() {
     },
     stopVoice,
     suspendVoice,
-    voiceDiagnostics: () => controller.diagnostics(),
+    voiceDiagnostics: () => {
+      const diagnostics = controller.diagnostics(),
+        native = audio.diagnostics();
+      return {
+        ...diagnostics,
+        native,
+        audioOwner:
+          native.state === "armed"
+            ? "wake"
+            : native.recognitionActive
+              ? "recognition"
+              : native.ttsActive
+                ? "tts"
+                : ["tts", "recognition"].includes(diagnostics.audioOwner)
+                  ? "none (transition)"
+                  : diagnostics.audioOwner,
+      };
+    },
+    retryKind: retry.current.status(roam.tripState.trip),
+    retryVersion,
+    retryAssistant: async () => {
+      if (
+        cardPending ||
+        ["thinking", "usingTool"].includes(controller.snapshot.phase)
+      )
+        return;
+      const input = retry.current.take(roamRef.current.tripState.trip);
+      setRetryVersion((value) => value + 1);
+      if (input) await controller.send(input);
+    },
+    setWakeSensitivity: async (value: number) => {
+      if (!__DEV__) return;
+      if (!(await controller.suspend(true, "configuration")))
+        throw new Error("Audio could not be released.");
+      try {
+        await audio.wake.dispose();
+        audio.setSensitivity(value);
+      } finally {
+        await controller.suspend(false, "configuration");
+      }
+    },
     wakeAvailability: audio.wake.availability(),
     configureWakeKey: async (key: string) => {
-      await controller.cancel(false);
-      if (controller.snapshot.phase === "error")
+      if (!(await controller.suspend(true, "configuration")))
         throw new Error("Audio could not be released.");
-      await audio.wake.dispose();
-      await saveWakeKey(key);
-      await controller.refreshAvailability();
+      try {
+        await audio.wake.dispose();
+        await saveWakeKey(key);
+        await audio.inspect();
+      } finally {
+        await controller.suspend(false, "configuration");
+      }
     },
   };
 }

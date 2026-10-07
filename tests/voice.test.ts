@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { VoiceController } from "../services/voice/VoiceController";
+import { VoiceSetupError } from "../services/voice/WakeRuntime";
 import {
   defaultVoiceSettings,
   conversationCancelled,
@@ -12,6 +13,113 @@ import {
 const flush = async () => {
   for (let step = 0; step < 40; step++) await Promise.resolve();
 };
+test("Pulse waits for actual native recognition start and errors never leave Listening", async () => {
+  const h = harness();
+  let finish!: () => void;
+  const original = h.ports.speech.start;
+  h.ports.speech.start = async (events) => {
+    await new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    await original(events);
+  };
+  const listening = h.controller.listen();
+  await flush();
+  assert.equal(h.controller.snapshot.phase, "preparing");
+  finish();
+  await listening;
+  assert.equal(h.controller.snapshot.phase, "listening");
+  h.capture.error();
+  await flush();
+  assert.equal(h.controller.snapshot.phase, "error");
+  await h.controller.dispose();
+});
+test("one listen action interrupts TTS and captures immediately even with no wake model", async () => {
+  const h = harness("setup-required");
+  await h.controller.speak("Long response");
+  assert.equal(h.speaking, true);
+  await h.controller.listen();
+  assert.equal(h.speaking, false);
+  assert.equal(h.microphone, "speech");
+  assert.equal(h.controller.snapshot.phase, "listening");
+  const start = h.events.lastIndexOf("speech-start");
+  assert.ok(h.events.lastIndexOf("tts-stop") < start);
+  await h.controller.dispose();
+});
+test("runtime wake failure keeps setup notice and independent push-to-talk and text usable", async () => {
+  const h = harness();
+  h.ports.wake.start = async () => {
+    throw new VoiceSetupError(
+      "missing-model",
+      "Hey ROAM model is not configured.",
+    );
+  };
+  await h.arm();
+  assert.equal(
+    h.controller.snapshot.notice,
+    "Hey ROAM model is not configured.",
+  );
+  await h.controller.listen();
+  assert.equal(h.microphone, "speech");
+  await h.utterance("ETA");
+  assert.deepEqual(h.requests, ["ETA"]);
+  await h.controller.dispose();
+});
+test("foreground trip lifecycle releases the native engine rather than only pausing its microphone", async () => {
+  const h = harness();
+  await h.arm();
+  const before = h.events.filter((event) => event === "disposed").length;
+  h.controller.configure(h.controller.settings, false, "trip-1");
+  await flush();
+  assert.equal(
+    h.events.filter((event) => event === "disposed").length,
+    before + 1,
+  );
+  assert.equal(h.microphone, null);
+  await h.controller.dispose();
+});
+test("false wakes and session durations remain local and exclude assistant wait time", async (context) => {
+  context.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 10000 });
+  const h = harness();
+  await h.arm();
+  h.detect();
+  await flush();
+  context.mock.timers.tick(2000);
+  await h.utterance("");
+  assert.equal(h.controller.diagnostics().emptyWakeSessions, 1);
+  assert.equal(h.controller.diagnostics().recognitionMs, 2000);
+  assert.deepEqual(h.requests, []);
+  context.mock.timers.tick(1800);
+  await flush();
+  h.detect();
+  await flush();
+  await h.controller.cancel();
+  assert.equal(h.controller.diagnostics().canceledWakeSessions, 1);
+  assert.equal(h.controller.diagnostics().voiceCommands, 0);
+  await h.controller.dispose();
+});
+test("native TTS pending state waits for audible start, and metrics omit playback queue time", async (context) => {
+  context.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 10000 });
+  const h = harness();
+  let start!: () => void;
+  let done!: () => void;
+  h.ports.tts.reportsStart = true;
+  h.ports.tts.speak = (_text, _volume, finished, _error, started) => {
+    start = started!;
+    done = finished;
+  };
+  await h.controller.speak("Reply");
+  assert.equal(h.controller.snapshot.phase, "speechPending");
+  context.mock.timers.tick(1000);
+  assert.equal(h.controller.diagnostics().ttsMs, 0);
+  start();
+  assert.equal(h.controller.snapshot.phase, "speaking");
+  context.mock.timers.tick(500);
+  done();
+  await flush();
+  assert.equal(h.controller.diagnostics().ttsMs, 500);
+  await h.controller.dispose();
+});
 function harness(availability: WakeAvailability = "ready") {
   let microphone: "wake" | "speech" | null = null,
     speaking = false;

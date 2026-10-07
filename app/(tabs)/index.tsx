@@ -54,7 +54,9 @@ export default function MapScreen() {
       style={{ flex: 1, backgroundColor: colors.background }}
     >
       <MapCanvas
-        coordinate={roam.coordinate}
+        coordinate={
+          roam.fresh && roam.status === "ready" ? roam.coordinate : null
+        }
         heading={roam.heading}
         destination={roam.destination}
         route={roam.tripState.trip?.route ?? null}
@@ -160,7 +162,11 @@ export default function MapScreen() {
             icon="locate-outline"
             label="Recenter map on your location"
             onPress={() => {
-              if (roam.status === "denied" || roam.status === "unavailable")
+              if (
+                roam.status === "denied" ||
+                roam.status === "unavailable" ||
+                !roam.fresh
+              )
                 roam.retry();
               setRecenter((value) => value + 1);
             }}
@@ -212,14 +218,14 @@ export default function MapScreen() {
           <IconButton
             style={{ marginRight: space.xs }}
             icon={
-              assistant.state === "speaking" || assistant.state === "listening"
-                ? "stop-outline"
-                : "mic-outline"
+              assistant.state === "listening" ? "stop-outline" : "mic-outline"
             }
             label={
-              assistant.state === "speaking" || assistant.state === "listening"
+              assistant.state === "listening"
                 ? "Stop voice conversation"
-                : "Speak to ROAM"
+                : assistant.state === "speaking"
+                  ? "Interrupt speech and speak to ROAM"
+                  : "Speak to ROAM"
             }
             active={assistant.state === "listening"}
             onPress={assistant.toggleVoice}

@@ -1,5 +1,8 @@
 import { ScrollView, Text, View, useWindowDimensions } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { useTheme } from "../themes/ThemeProvider";
 import { space, type } from "../design/tokens";
 import { phoneLayout } from "../design/layout";
@@ -14,6 +17,7 @@ export function Page({
     theme: { colors },
   } = useTheme();
   const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const layout = phoneLayout(width, height);
   const style = {
     width: "100%" as const,
@@ -46,7 +50,10 @@ export function Page({
         <ScrollView
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-          contentContainerStyle={[style, { paddingBottom: space.xxl }]}
+          contentContainerStyle={[
+            style,
+            { paddingBottom: space.xxl + insets.bottom },
+          ]}
         >
           {content}
         </ScrollView>

@@ -153,12 +153,14 @@ export default function ProfileScreen() {
           Messages and a compact trip summary go to the configured ROAM backend
           and Gemini. Google receives location for places and routes. No
           location history or conversations are saved between sessions.
-          Preferences are stored locally.
+          Preferences and a recoverable destination/remaining-stop plan are
+          stored locally. The plan expires after six hours; ending a trip
+          removes it.
         </Text>
         <Text style={{ ...type.small, color: colors.muted }}>
           Wake detection pauses during spoken replies. Tap the microphone to
-          stop playback. A short listening window opens after a verified
-          confirmation question.
+          stop playback and speak in one tap. A short listening window opens
+          after a verified confirmation question.
         </Text>
       </View>
       {__DEV__ && (
@@ -173,7 +175,7 @@ export default function ProfileScreen() {
         </View>
       )}
       <Text style={{ ...type.small, color: colors.muted }}>
-        ROAM 0.5.0 · Your AI for the road.
+        ROAM 0.6.0 · Your AI for the road.
       </Text>
     </Page>
   );

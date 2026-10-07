@@ -15,8 +15,20 @@ export class RouteDeviationMonitor {
   private first = 0;
   private last = 0;
   private attemptedAt = -Infinity;
+  private offset: number | null = null;
+  private reason: string | null = null;
+  diagnostics(now = Date.now()) {
+    return {
+      distanceFromRoute: this.offset,
+      offRouteSamples: this.count,
+      cooldownMs: Math.max(0, this.cooldown - (now - this.attemptedAt)),
+      lastRerouteReason: this.reason,
+    };
+  }
   constructor(private cooldown = LIMITS.REROUTE_COOLDOWN_MS) {}
   reset() {
+    this.offset = null;
+    this.reason = null;
     this.route = null;
     this.count = 0;
     this.first = this.last = 0;
@@ -39,6 +51,7 @@ export class RouteDeviationMonitor {
       now - fix.timestamp > 15_000 ||
       fix.timestamp > now + 1000;
     if (invalid) {
+      this.offset = null;
       this.count = 0;
       return { state: "onRoute" as const, reroute: false };
     }
@@ -50,6 +63,7 @@ export class RouteDeviationMonitor {
         reroute: false,
       };
     const projection = projectOntoRoute(fix.coordinate, route.geometry);
+    this.offset = projection?.offsetMeters ?? null;
     if (!projection) return { state: "onRoute" as const, reroute: false };
     if (fix.timestamp - this.last > 15_000) this.count = 0;
     this.last = fix.timestamp;
@@ -65,12 +79,14 @@ export class RouteDeviationMonitor {
       fix.timestamp - this.first >= LIMITS.OFF_ROUTE_CONFIRM_MS;
     const reroute = confirmed && now - this.attemptedAt >= this.cooldown;
     if (reroute) {
+      this.reason = "Repeated accurate off-route fixes";
       this.attemptedAt = now;
       this.count = 0;
     }
     return { state: "possiblyOffRoute" as const, reroute };
   }
-  markAttempt(now = Date.now()) {
+  markAttempt(now = Date.now(), reason = "Route refresh requested") {
+    this.reason = reason;
     this.attemptedAt = now;
     this.count = 0;
   }

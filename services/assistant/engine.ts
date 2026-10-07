@@ -41,6 +41,7 @@ export interface AssistantReply {
   spokenText: string;
   places?: Place[];
   error?: boolean;
+  retryKind?: "conversation" | "failed-action" | "executed-action";
 }
 interface Outcome extends AssistantReply {
   kind:
@@ -73,8 +74,22 @@ export class AssistantEngine {
     this.results = null;
     return [];
   }
-  hasPendingConfirmation() { return this.currentPending() !== null; }
-  clearPendingConfirmation() { this.pending = null; }
+  hasPendingConfirmation() {
+    return this.currentPending() !== null;
+  }
+  clearPendingConfirmation() {
+    this.pending = null;
+  }
+  private trackedProjection() {
+    const { trip, progress } = this.trip.getSnapshot();
+    // Older mock ports have no progress field; keep their pure projection behavior.
+    if (progress === undefined) return undefined;
+    return progress &&
+      progress.route === trip?.route &&
+      this.now() - progress.timestamp <= 15000
+      ? progress.projection
+      : null;
+  }
   private currentResult(place: Place): Place {
     const location = this.getLocation();
     if (
@@ -111,6 +126,7 @@ export class AssistantEngine {
       null,
       this.now(),
       this.getAccuracy?.(),
+      this.trackedProjection(),
     );
     if (!context.destination)
       return this.reply(
@@ -527,6 +543,14 @@ export class AssistantEngine {
     const initialTrip = this.trip.getSnapshot().trip;
     const presentedResults = this.recentResults();
     const outcomes: Outcome[] = [];
+    const finish = (reply: AssistantReply): AssistantReply => ({
+      ...reply,
+      retryKind: outcomes.some((outcome) => outcome.kind === "mutation")
+        ? "executed-action"
+        : mutationAttempted
+          ? "failed-action"
+          : "conversation",
+    });
     let calls = 0,
       mutationAttempted = false;
     try {
@@ -543,6 +567,7 @@ export class AssistantEngine {
             this.currentPending(),
             this.now(),
             this.getAccuracy?.(),
+            this.trackedProjection(),
           ),
         },
         signal,
@@ -551,7 +576,7 @@ export class AssistantEngine {
         if (signal?.aborted)
           throw new ServiceError("cancelled", "Request cancelled.");
         if (response.type === "response")
-          return this.render(response.plan, outcomes);
+          return finish(this.render(response.plan, outcomes));
         onState?.("usingTool");
         const receipts: ToolReceipt[] = [];
         for (const call of response.calls) {
@@ -601,13 +626,16 @@ export class AssistantEngine {
       );
     } catch (error) {
       // A successful tool receipt is authoritative even if Gemini's final call fails.
-      if (outcomes.length) return this.render({ kind: "chat" }, outcomes);
+      if (outcomes.length)
+        return finish(this.render({ kind: "chat" }, outcomes));
       if (isCancelled(error)) throw error;
-      return this.reply(
-        error instanceof ServiceError
-          ? error.message
-          : "I couldn’t reach ROAM AI. Your map and trip controls are still available.",
-        { kind: "error", error: true },
+      return finish(
+        this.reply(
+          error instanceof ServiceError
+            ? error.message
+            : "I couldn’t reach ROAM AI. Your map and trip controls are still available.",
+          { kind: "error", error: true },
+        ),
       );
     } finally {
       this.busy = false;

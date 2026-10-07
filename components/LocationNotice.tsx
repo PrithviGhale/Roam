@@ -1,7 +1,7 @@
 import { useRoam } from "../contexts/RoamProvider";
 import { StatusCard } from "./StatusCard";
 export function LocationNotice() {
-  const { status, canAskAgain, retry, fresh } = useRoam();
+  const { status, canAskAgain, retry, fresh, permissionStatus } = useRoam();
   if (status === "ready" && fresh) return null;
   const pending = status === "locating" || status === "requesting";
   return (
@@ -24,7 +24,9 @@ export function LocationNotice() {
           ? undefined
           : status === "denied" && !canAskAgain
             ? "Open Settings"
-            : "Retry location"
+            : permissionStatus === "undetermined"
+              ? "Allow location"
+              : "Retry location"
       }
       onPress={retry}
     />

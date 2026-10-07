@@ -80,11 +80,13 @@ export function PlaceList({
                   </Text>
                 ) : null}
               </View>
-              <Icon
-                name="arrow-forward-outline"
-                size={18}
-                color={colors.muted}
-              />
+              {!displayOnly && (
+                <Icon
+                  name="arrow-forward-outline"
+                  size={18}
+                  color={colors.muted}
+                />
+              )}
             </View>
             {place.source === "mock" ? (
               <Text style={{ ...type.small, color: colors.accent }}>

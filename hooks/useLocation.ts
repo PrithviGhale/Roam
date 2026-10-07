@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Linking } from "react-native";
 import * as Location from "expo-location";
-import { speedInMph, validCoordinate } from "../utils/location";
+import { validCoordinate } from "../utils/location";
+
+import { SpeedFilter, HeadingFilter } from "../utils/motionFilter";
 
 export type LocationStatus =
   "requesting" | "denied" | "locating" | "ready" | "unavailable";
@@ -9,7 +11,12 @@ export function useLocation() {
   const [location, setLocation] = useState<Location.LocationObject | null>(
     null,
   );
-  const [heading, setHeading] = useState<number | null>(null);
+  const [filteredSpeed, setFilteredSpeed] = useState<number | null>(null);
+  const speedFilter = useRef(new SpeedFilter());
+  const headingFilter = useRef(new HeadingFilter());
+  const askPermission = useRef(false);
+  const [permissionStatus, setPermissionStatus] = useState("undetermined");
+  const gpsTime = useRef({ accumulated: 0, since: null as number | null });
   const [status, setStatus] = useState<LocationStatus>("requesting");
   const [canAskAgain, setCanAskAgain] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,17 +36,36 @@ export function useLocation() {
   }, [active]);
   useEffect(() => {
     if (!active) {
-      setHeading(null);
+      headingFilter.current.reset();
       return;
     }
     let cancelled = false;
     let positionSubscription: Location.LocationSubscription | undefined;
-    let headingSubscription: Location.LocationSubscription | undefined;
     let fixTimer: ReturnType<typeof setTimeout> | undefined;
     const receive = (value: Location.LocationObject) => {
-      if (cancelled || !validCoordinate(value.coords)) return;
+      if (
+        cancelled ||
+        !validCoordinate(value.coords) ||
+        !Number.isFinite(value.timestamp) ||
+        Date.now() - value.timestamp > 15000 ||
+        value.timestamp > Date.now() + 1000
+      )
+        return;
       clearTimeout(fixTimer);
       setLocation(value);
+      setFilteredSpeed(
+        speedFilter.current.update({
+          speed: value.coords.speed,
+          accuracy: value.coords.accuracy,
+          timestamp: value.timestamp,
+        }),
+      );
+      headingFilter.current.update(
+        value.coords.heading,
+        value.coords.speed,
+        value.coords.accuracy,
+        value.timestamp,
+      );
       setNow(Date.now());
       setStatus("ready");
       setError(null);
@@ -48,13 +74,21 @@ export function useLocation() {
       setStatus("requesting");
       setError(null);
       setLocation(null);
+      speedFilter.current.reset();
+      headingFilter.current.reset();
+      setFilteredSpeed(null);
       try {
         let permission = await Location.getForegroundPermissionsAsync();
         if (cancelled) return;
-        if (!permission.granted && permission.canAskAgain)
+        if (
+          !permission.granted &&
+          permission.canAskAgain &&
+          askPermission.current
+        )
           permission = await Location.requestForegroundPermissionsAsync();
         if (cancelled) return;
         setCanAskAgain(permission.canAskAgain);
+        setPermissionStatus(permission.status);
         if (!permission.granted) {
           setStatus("denied");
           return;
@@ -89,6 +123,18 @@ export function useLocation() {
             if (!cancelled) {
               setStatus("unavailable");
               setError("GPS updates were interrupted. Retry to reconnect.");
+              void Location.getForegroundPermissionsAsync()
+                .then((permission) => {
+                  if (cancelled) return;
+                  setPermissionStatus(permission.status);
+                  setCanAskAgain(permission.canAskAgain);
+                  if (!permission.granted) {
+                    positionSubscription?.remove();
+                    setLocation(null);
+                    setStatus("denied");
+                  }
+                })
+                .catch(() => {});
             }
           },
         );
@@ -97,25 +143,7 @@ export function useLocation() {
           return;
         }
         positionSubscription = subscription;
-        try {
-          const compass = await Location.watchHeadingAsync((value) => {
-            if (cancelled) return;
-            const degrees =
-              value.trueHeading >= 0 ? value.trueHeading : value.magHeading;
-            setHeading(
-              value.accuracy > 0 &&
-                Number.isFinite(degrees) &&
-                degrees >= 0 &&
-                degrees < 360
-                ? degrees
-                : null,
-            );
-          });
-          if (cancelled) compass.remove();
-          else headingSubscription = compass;
-        } catch {
-          /* Compass availability is independent of GPS permission. */
-        }
+        gpsTime.current.since = Date.now();
       } catch {
         if (!cancelled) {
           setStatus("unavailable");
@@ -128,37 +156,38 @@ export function useLocation() {
       cancelled = true;
       clearTimeout(fixTimer);
       positionSubscription?.remove();
-      headingSubscription?.remove();
+      if (gpsTime.current.since !== null)
+        gpsTime.current.accumulated += Math.max(
+          0,
+          Date.now() - gpsTime.current.since,
+        );
+      gpsTime.current.since = null;
     };
   }, [attempt, active]);
   const retry = useCallback(() => {
+    askPermission.current = true;
     if (!canAskAgain && status === "denied") {
       void Linking.openSettings().catch(() =>
-        setError(
-          "Open your phone’s Settings to allow location for Expo Go or ROAM.",
-        ),
+        setError("Open iPhone Settings to allow location for ROAM."),
       );
     } else setAttempt((value) => value + 1);
   }, [canAskAgain, status]);
   const fresh =
-    active && location !== null && now - location.timestamp <= 15000;
-  const speedMph =
-    fresh && status === "ready"
-      ? speedInMph(
-          location
-            ? {
-                speed: location.coords.speed,
-                accuracy: location.coords.accuracy,
-                timestamp: location.timestamp,
-              }
-            : null,
-          now,
-        )
-      : null;
+    active &&
+    location !== null &&
+    now - location.timestamp <= 15000 &&
+    location.timestamp <= now + 1000;
+  const speedMph = fresh && status === "ready" ? filteredSpeed : null;
   return {
     coordinate: location?.coords ?? null,
     speedMph,
-    heading,
+    heading:
+      fresh &&
+      status === "ready" &&
+      location &&
+      now - location.timestamp <= 10000
+        ? headingFilter.current.current(now)
+        : null,
     status,
     error,
     canAskAgain,
@@ -167,7 +196,11 @@ export function useLocation() {
     accuracy: location?.coords.accuracy ?? null,
     timestamp: location?.timestamp ?? null,
     rawSpeed: location?.coords.speed ?? null,
-    permissionStatus:
-      status === "denied" ? "denied" : location ? "granted" : status,
+    permissionStatus,
+    gpsSessionMs:
+      gpsTime.current.accumulated +
+      (gpsTime.current.since === null
+        ? 0
+        : Math.max(0, now - gpsTime.current.since)),
   };
 }

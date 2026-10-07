@@ -1,5 +1,7 @@
 export type VoicePhase =
   | "inactive"
+  | "initializing"
+  | "preparing"
   | "armed"
   | "wakeDetected"
   | "listening"
@@ -7,6 +9,7 @@ export type VoicePhase =
   | "thinking"
   | "usingTool"
   | "speaking"
+  | "speechPending"
   | "cooldown"
   | "error";
 export interface VoiceSettings {
@@ -53,11 +56,13 @@ export interface VoicePorts {
     stop(): Promise<void>;
   };
   tts: {
+    reportsStart?: boolean;
     speak(
       text: string,
       volume: number,
       done: () => void,
       error: () => void,
+      started?: () => void,
     ): void;
     stop(): Promise<void>;
   };

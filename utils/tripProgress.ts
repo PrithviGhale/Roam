@@ -1,5 +1,5 @@
 import type { ActiveTrip, Coordinate } from "../types/domain";
-import { projectOntoRoute } from "./geo";
+import { projectOntoRoute, type RouteProjection } from "./geo";
 import { arrivalTimestamp, durationAtFraction } from "./routeTiming";
 import { validCoordinate } from "./location";
 export function tripProgress(
@@ -8,6 +8,7 @@ export function tripProgress(
   fresh: boolean,
   now = Date.now(),
   accuracy?: number | null,
+  trackedProjection?: RouteProjection | null,
 ) {
   const route = trip?.route;
   if (!route) return null;
@@ -18,7 +19,9 @@ export function tripProgress(
     validCoordinate(coordinate) &&
     (accuracy === undefined ||
       (accuracy !== null && accuracy >= 0 && accuracy <= 50))
-      ? projectOntoRoute(coordinate, route.geometry)
+      ? trackedProjection === undefined
+        ? projectOntoRoute(coordinate, route.geometry)
+        : trackedProjection
       : null;
   const offRoute = Boolean(
     projection && projection.offsetMeters > Math.max(70, (accuracy ?? 25) * 3),

@@ -1,8 +1,14 @@
-# ROAM · V0.5
+# ROAM · V0.6
 
-**Your AI for the road.** iPhone-first Expo SDK 57, React Native and TypeScript, Google Places/Routes, foreground GPS, and a Gemini assistant behind a Cloudflare Worker. V0.5 adds a coherent ROAM interface and optional foreground **Hey ROAM** using an on-device custom wake model. Verified detours, progress, arrival, conservative rerouting, ordered stops, provider budgets, validation and all 93 prior tests remain.
+**Your AI for the road.** iPhone-first Expo SDK 57, React Native and TypeScript, Google Places/Routes, foreground GPS, and a Gemini assistant behind a Cloudflare Worker. V0.5 introduced a coherent ROAM interface and optional foreground **Hey ROAM** using an on-device custom wake model. Verified detours, progress, arrival, conservative rerouting, ordered stops, provider budgets, validation and all 93 prior tests remain.
 
 This is a route-planning/driving prototype. Full voice needs a newly built native client, your Picovoice model/AccessKey and appropriate licensing. No turn-by-turn Navigation SDK, CarPlay, 3D, weather, community reports, police reports, fuel prices, background navigation or account system is included.
+
+## V0.6 native reliability
+
+V0.6 hardens wake initialization/model validation, exclusive audio teardown, one-tap microphone interruption, native-driven Pulse, GPS speed/course filtering, progress continuity and guarded assistant retry. Diagnostics adds session event/timing counters and low-power status. A minimal recoverable trip plan recalculates from fresh GPS and requires Start trip after a reload.
+
+Read [V0.6 changes and limitations](docs/v06-reliability.md) and [signed development-build setup / physical iPhone checklist](docs/v06-iphone-checklist.md). The full native experience requires a newly signed development client. SDK 57 remains unchanged.
 
 ## ROAM interface
 
@@ -42,7 +48,7 @@ Fill **.env** (ignored by Git):
 EXPO_PUBLIC_ROAM_API_URL=http://YOUR_LAN_IPV4:8787
 EXPO_PUBLIC_ROAM_ACCESS_TOKEN=the_same_testing_gate
 EXPO_PUBLIC_GOOGLE_MAPS_IOS_KEY=your_application_restricted_ios_sdk_key
-EXPO_PUBLIC_GOOGLE_IOS_BUNDLE_IDENTIFIER=host.exp.Exponent
+EXPO_PUBLIC_GOOGLE_IOS_BUNDLE_IDENTIFIER=com.prithvighale.roam
 ```
 
 Use the computer's IPv4 address from `ipconfig` for an iPhone on the same Wi-Fi; use `http://localhost:8787` for the computer's browser. Start two terminals:
@@ -52,14 +58,14 @@ npm run server
 ```
 
 ```sh
-npx expo start --go --clear
+npx expo start --dev-client --clear
 ```
 
-Use a compatible SDK 57 Expo Go installation. Allow LAN port 8787 and Metro only on a trusted private network. If native transport blocks local HTTP, use an HTTPS development endpoint/tunnel. No backend is deployed by starting Expo.
+Install the SDK 57 ROAM development build using the device checklist above. Allow LAN port 8787 and Metro only on a trusted private network. If native transport blocks local HTTP, use an HTTPS development endpoint/tunnel. No backend is deployed by starting Expo.
 
 ### After the SDK 57 upgrade
 
-Stop any Metro process started with SDK 54, then run `npm ci` and `npx expo start --go --clear` from this repository. Scan the new QR code in SDK 57 Expo Go. Existing SDK 54 ROAM development builds must be rebuilt with the development profile below. SDK 57 requires iOS 16.4 or newer. The app version is V0.5; the retained backend health contract still reports V0.4.
+Stop any Metro process started with SDK 54, then run `npm ci` and `npx expo start --dev-client --clear` from this repository. Open the new QR code in the ROAM development client. Existing SDK 54 ROAM development builds must be rebuilt with the development profile below. SDK 57 requires iOS 16.4 or newer. The app version is V0.6; the retained backend health contract still reports V0.4.
 
 The dependency set follows [Expo's SDK 57 upgrade guide](https://expo.dev/changelog/sdk-57): React 19.2.3, React Native 0.86.3, TypeScript 6.0.3, and matching Expo modules. Native Google Maps keys now use the `react-native-maps` config plugin. Keep native map keys separate from Worker REST credentials.
 
@@ -92,7 +98,7 @@ Push-to-talk uses [expo-speech-recognition](https://github.com/jamsch/expo-speec
 
 Opt-in **Profile → Hey ROAM** arms only during an active foreground verified trip. Before detection, wake audio stays on-device. After activation, OS command recognition may process audio remotely; resulting text follows the existing Worker/Gemini pipeline. The audio owner pauses wake before capture/tools/TTS and resumes through cooldown. A typed, verified pending confirmation opens a **10-second** answer window after playback; “yes” needs no repeated wake phrase then. Silence or conversation cancellation clears it. “Never mind / Cancel / Stop listening” retains the route; “Cancel my route” reaches the existing explicit engine.
 
-Wake-word interruption of TTS is **disabled pending physical audio/echo validation**; tap the microphone to stop playback, then tap again to speak. Native errors/interruption release audio and wait for retry/foreground return instead of fighting the OS. Preferences include automatic spoken replies, short driving replies and softer/system volume. Diagnostics shows wake-active duration, activations and recognition sessions in RAM only. Battery impact is expected but not measured. Full setup, licensing, lifecycle and limitations are in [V0.5 voice](docs/v05-voice.md).
+Wake-word interruption of TTS is **disabled pending physical audio/echo validation**; one microphone tap stops playback and opens recognition. Native errors/interruption release audio and wait for retry/foreground return instead of fighting the OS. Preferences include automatic spoken replies, short driving replies and softer/system volume. Diagnostics shows wake-active duration, activations and recognition sessions in RAM only. Battery impact is expected but not measured. Full setup, licensing, lifecycle and limitations are in [V0.5 voice](docs/v05-voice.md).
 
 ## Verified detours and recommendations
 
@@ -172,7 +178,7 @@ Open **Profile → Device diagnostics** in a development session. The entry and 
 
 ## Validation and remaining work
 
-Credential-free checks preserve all **93 V0.4 tests**, plus **33 V0.5 tests**: **126 passing** (107 app/service, 19 backend). Both TypeScript checks pass, **21/21 Expo Doctor checks** pass, iOS/web exports succeed, and the existing Worker dry-run build succeeds without deployment. Voice tests cover follow-up, cooldown, OS interruption, stale callbacks, exclusive audio, audio leases, disabled/unavailable native voice, finite capture and partial-result rejection. Design tests cover modes, exclusive overlays, phone layouts and contrast. Native checks verify foreground permissions and test optional/idempotent wake-model bundling. No automated suite needs live billing credentials. The SDK 57 installation reported **32 remaining audit findings** (10 moderate, 22 high); see the audit document for the original SDK 54 snapshot and scope.
+Credential-free checks preserve all **93 V0.4 tests**, plus **33 V0.5 tests** and **27 V0.6 reliability tests**: **153 passing** (134 app/service, 19 backend), preserving all 126 V0.5 tests. Both TypeScript checks pass, **21/21 Expo Doctor checks** pass, iOS/web exports succeed, and the existing Worker dry-run build succeeds without deployment. Voice tests cover follow-up, cooldown, OS interruption, stale callbacks, exclusive audio, audio leases, disabled/unavailable native voice, finite capture and partial-result rejection. Design tests cover modes, exclusive overlays, phone layouts and contrast. Native checks verify foreground permissions and test optional/idempotent wake-model bundling. No automated suite needs live billing credentials. The SDK 57 installation reported **32 remaining audit findings** (10 moderate, 22 high); see the audit document for the original SDK 54 snapshot and scope.
 
 ```sh
 npm run check

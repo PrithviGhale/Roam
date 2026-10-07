@@ -1,12 +1,19 @@
 import { useRef, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import {
+  Linking,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useAssistant } from "../contexts/AssistantProvider";
 import { useRoam } from "../contexts/RoamProvider";
 import { useTheme } from "../themes/ThemeProvider";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 import { space, radius, type } from "../design/tokens";
 import { RoamPulse } from "./RoamPulse";
-import { IconButton } from "./ui";
+import { Button, IconButton } from "./ui";
 import { PlaceList } from "./PlaceList";
 import { GoogleAttribution } from "./GoogleAttribution";
 import { StatusCard } from "./StatusCard";
@@ -133,7 +140,27 @@ export function RoamAssistant({
           </View>
         ))}
         {assistant.voiceNotice && (
-          <StatusCard title="Voice" detail={assistant.voiceNotice} />
+          <StatusCard
+            title="Voice"
+            detail={assistant.voiceNotice}
+            action={
+              assistant.voiceNotice.includes("Settings")
+                ? "Open Settings"
+                : undefined
+            }
+            onPress={() => void Linking.openSettings().catch(() => {})}
+          />
+        )}
+        {assistant.retryKind && (
+          <Button
+            secondary
+            disabled={processing}
+            onPress={() => void assistant.retryAssistant()}
+          >
+            {assistant.retryKind === "failed-action"
+              ? "Retry failed action"
+              : "Retry request"}
+          </Button>
         )}
         {assistant.transcript && (
           <Text
@@ -178,16 +205,16 @@ export function RoamAssistant({
       >
         <IconButton
           icon={
-            assistant.state === "listening" || assistant.state === "speaking"
-              ? "stop-outline"
-              : "mic-outline"
+            assistant.state === "listening" ? "stop-outline" : "mic-outline"
           }
           active={assistant.state === "listening"}
           disabled={processing}
           label={
-            assistant.state === "listening" || assistant.state === "speaking"
+            assistant.state === "listening"
               ? "Stop voice conversation"
-              : "Speak to ROAM"
+              : assistant.state === "speaking"
+                ? "Interrupt speech and speak to ROAM"
+                : "Speak to ROAM"
           }
           onPress={assistant.toggleVoice}
         />

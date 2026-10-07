@@ -7,13 +7,16 @@ import type { VoicePhase } from "../services/voice/types";
 
 export const voiceLabels: Record<VoicePhase, string> = {
   inactive: "Ready when you are",
+  initializing: "Preparing Hey ROAM",
+  preparing: "Opening microphone",
   armed: "Hey ROAM · listening locally",
   wakeDetected: "Heard you",
   listening: "Listening to your command",
   transcribing: "Finishing your words",
   thinking: "Thinking it through",
   usingTool: "Checking your journey",
-  speaking: "Speaking · tap to stop",
+  speaking: "Speaking · tap mic to reply",
+  speechPending: "Preparing spoken reply",
   cooldown: "Returning to standby",
   error: "Voice needs a retry",
 };

@@ -94,6 +94,7 @@ export interface PlaceFact {
   verifiedDetourSeconds?: number;
   verifiedDetourMeters?: number;
   detourCalculatedAt?: string;
+  detourProvider?: "mapbox" | "google" | "fallback";
 }
 export const placeFactSchema = z
   .object({
@@ -108,6 +109,7 @@ export const placeFactSchema = z
     verifiedDetourSeconds: z.number().finite().optional(),
     verifiedDetourMeters: z.number().finite().optional(),
     detourCalculatedAt: z.string().datetime().optional(),
+    detourProvider: z.enum(["mapbox", "google", "fallback"]).optional(),
   })
   .strict();
 export const contextSchema = z
@@ -116,6 +118,7 @@ export const contextSchema = z
     stops: z.array(z.object({ id: text, name: text }).strict()).max(5),
     routeAvailable: z.boolean(),
     tripStarted: z.boolean(),
+    routeProvider: z.enum(["mapbox", "google", "fallback"]).optional(),
     navigation: z
       .object({
         nextInstruction: z.string().max(500),

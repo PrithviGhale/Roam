@@ -72,7 +72,7 @@ export function LegacyMapCanvas({
       },
     });
     // GPS and overlay-height changes must not steal a panned camera.
-  }, [route, ready, google]);
+  }, [route, ready, google, navigation.camera]);
   useEffect(() => {
     if (!ready || !destination || destination.source !== "mock") return;
     const points = latest.current.coordinate

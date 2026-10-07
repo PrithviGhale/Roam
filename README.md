@@ -1,33 +1,32 @@
-﻿# ROAM
+# ROAM
 
 **Your AI for the road.** An iPhone-first app for planning a drive, finding useful stops, and talking to a driving assistant.
 
-**Version: 0.7.0** · Expo SDK 57 · React Native · TypeScript
+**Version: 0.8.0** · Expo SDK 57 · React Native · TypeScript
 
-## What works today
+## What ROAM does
 
-- Search for destinations and nearby places with Google Places.
-- Plan a route, add up to five stops, and compare verified detour times.
-- Track foreground GPS, approximate speed, route progress, and arrival estimates.
-- Find food, gas, coffee, restrooms, or parking through the Gemini assistant.
-- Use text, spoken replies, and push-to-talk in a supported development build.
-- Use optional **Hey ROAM** after setting up the on-device wake model and key.
-- Switch between light and dark themes. Driving Mode keeps the map and trip controls easy to read.
-- Recover a saved destination and remaining stops after a reload, then recalculate and start again.
+- Find destinations, food, gas, coffee, restrooms, and parking with Google Places.
+- Plan a drive, add up to five stops, and compare verified detour times.
+- Show foreground GPS, speed, trip progress, and arrival estimates.
+- Talk to the Gemini assistant through text or push-to-talk.
+- Use optional **Hey ROAM** with the local wake model and Picovoice key configured.
+- Use ROAM's light and dark themes, custom Driving Mode, maneuver rail, and map controls.
+- Recover your destination and remaining stops after a reload, then calculate a fresh route.
 
-With no backend connected, ROAM uses clearly labeled fictional demo places.
+Without a backend, discovery uses clearly labeled fictional demo places.
 
-## What V0.7 adds
+## What V0.8 adds
 
-A native iOS navigation integration, custom maneuver rail and icons, follow/overview/free camera modes, ordered waypoint handling, and navigation speech priority. The new bridge connects Google Navigation SDK **11.2.0** to ROAM's own interface. It also adds navigation diagnostics and development-only SDK simulation controls.
+Mapbox Navigation **3.32.0** and Maps **11.32.0** now sit behind ROAM's native iOS bridge. The new adapter handles route progress, snapped position, turns, rerouting, ordered stops, and arrival. ROAM keeps its own screens and uses its existing voice controller for Mapbox's timed spoken instructions.
 
-**Google Navigation is disabled for this personal project, as requested.** Google's current policy allows Navigation SDK only for commercial applications. Existing route planning, GPS tracking, stops, and assistant features remain available. The integration needs an eligible project, a native build, and device testing before turn-by-turn navigation can be used. It has not been compiled or verified on an iPhone yet. [Navigation setup and limits](docs/v07-navigation.md)
+Configured iOS builds prefer Mapbox for route previews and detour comparisons. Each route and comparison records its provider. A failed stop update keeps your current trip. Google Navigation remains disabled and excluded from the build; Google Places remains discovery, with results in attributed lists and cards rather than markers on a Mapbox map.
 
-The repository is also cleaner: supporting app code now lives in `src/`, while Expo routes stay in `app/`.
+**The EAS iOS simulator development build compiled successfully.** Live Mapbox routing and physical iPhone driving still need your tokens and device checks. The [V0.8 guide](docs/v08-mapbox-navigation.md) records the build, setup, costs, and remaining checks.
 
 ## Run the project
 
-Use Node 24.3 or newer and npm. From the project folder:
+Use Node 24.3 or newer and npm:
 
 ```powershell
 npm ci
@@ -35,51 +34,51 @@ Copy-Item .env.example .env
 Copy-Item server/.dev.vars.example server/.dev.vars
 ```
 
-Fill the local files with your settings:
+| File               | Settings                                                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------- |
+| `.env`             | Backend URL, prototype access token, public Mapbox runtime token, Android map key if needed |
+| `server/.dev.vars` | Private Gemini and Google Places/Routes keys                                                |
 
-| File               | What belongs there                                                         |
-| ------------------ | -------------------------------------------------------------------------- |
-| `.env`             | Backend URL, prototype access token, and an app-restricted native Maps key |
-| `server/.dev.vars` | Private Gemini and Google Places/Routes keys                               |
+Mapbox needs an account and billing setup. Set `EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN` to your public `pk.` token. Keep private keys out of public variables and Git. Stable Mapbox 3.32.0 downloads currently need no secret token; an optional `MAPBOX_DOWNLOADS_TOKEN` belongs only in the EAS build environment. [Token and EAS setup](docs/v08-mapbox-navigation.md#credentials-and-builds)
 
-Keep `ROAM_ENABLE_NAVIGATION=false`. For an iPhone on your Wi-Fi, use your computer's LAN address in the backend URL, such as `http://YOUR_LAN_IP:8787`. A published backend should use HTTPS. Never put private server keys in an `EXPO_PUBLIC_` variable.
+For an iPhone on your Wi-Fi, use your computer's LAN address in the backend URL, such as `http://YOUR_LAN_IP:8787`. A published backend should use HTTPS.
 
-Start the backend in one terminal:
+Use the Worker from this revision with the V0.8 app. If you use a published backend, update it so the assistant accepts the new route-provider fields.
+
+Start these in separate terminals:
 
 ```sh
 npm run server
+npm run start:dev
 ```
 
-Start the app in another:
+Native module changes require a new development build:
 
 ```sh
-npx expo start --dev-client --clear
+npx eas-cli@latest build --platform ios --profile development
 ```
 
-A new iOS development build is required for native module changes:
+Install it on your registered iPhone, then open the Expo QR code. Apple signing is required for a device build. A Mac simulator build can use `--profile development-simulator`. Expo Go, Android, and web keep the planning fallback; they do not contain this iOS Mapbox engine.
 
-```sh
-npx eas-cli build --platform ios --profile development
-```
+## Accounts and cost
 
-Install it on your registered iPhone, then open the new Expo QR code. Apple signing and EAS account setup are required. Expo Go and web cannot run the native navigation or wake engine. [iPhone voice/build setup](docs/v06-iphone-checklist.md)
+Navigation is not unlimited or always free. Mapbox's current metered v3 tier includes 100 monthly active users and 1,000 trips per billing month; paid usage starts at $0.30 per additional user and $0.08 per trip, with volume tiers. Check [current pricing](https://www.mapbox.com/pricing) and monitor your account's usage. Maps, route requests, Google Places, Gemini, and builds may have their own charges. ROAM does not add Mapbox Search.
 
 ## Where things live
 
-| Folder                 | Purpose                                                       |
-| ---------------------- | ------------------------------------------------------------- |
-| `app/`                 | Screens and Expo Router routes                                |
-| `src/`                 | Components, themes, hooks, app services, and trip/voice state |
-| `modules/`             | Local Swift navigation module and typed bridge                |
-| `server/`              | Cloudflare backend for Gemini and Google REST requests        |
-| `shared/`              | App/backend validation and request types                      |
-| `assets/`              | App assets and optional local wake model                      |
-| `plugins/`, `scripts/` | Native configuration and build checks                         |
-| `tests/`, `docs/`      | Automated tests, setup notes, and device checklists           |
+| Folder                 | Purpose                                                   |
+| ---------------------- | --------------------------------------------------------- |
+| `app/`                 | Screens and Expo Router routes                            |
+| `src/`                 | Components, themes, hooks, services, trip and voice state |
+| `modules/`             | Native navigation providers and typed bridge              |
+| `server/`, `shared/`   | Cloudflare backend and shared validation                  |
+| `assets/`              | App assets and optional local wake model                  |
+| `plugins/`, `scripts/` | Native setup and build checks                             |
+| `tests/`, `docs/`      | Tests, setup guides, and device checklists                |
 
-Generated builds, downloaded SDKs, local settings, and credentials are kept out of Git.
+Generated builds, downloaded SDKs, local settings, and credentials stay out of Git.
 
-## Check your changes
+## Checks and limits
 
 ```sh
 npm run check
@@ -88,10 +87,8 @@ npx expo-doctor
 npm run server:build
 ```
 
-V0.7 has **190 passing tests**, including all 153 previous tests. Native exports check JavaScript bundling; they do not prove that Swift compiles or that driving guidance works on a device.
+V0.8 has **228 passing tests**, including all 190 previous tests. iOS, Android, and web exports check JavaScript bundles; they do not prove that native guidance works on an iPhone.
 
-## Current limits
+This is a development prototype. It does not yet provide background navigation, CarPlay, downloaded offline regions, a route-alternative selector, weather, fuel prices, or community reports. Native voice needs its own build and permissions. Messages and navigation details stay in memory; the recoverable trip plan lasts up to six hours.
 
-ROAM is a development prototype. Navigation stays in the foreground; it does not provide background navigation, CarPlay, 3D cities, fuel prices, weather, or community reports. Native voice needs its own build, permissions, wake model, and Picovoice setup. Messages and navigation details stay in memory; the recoverable trip plan is stored locally for up to six hours.
-
-For the full V0.7 architecture and pending verification, read the [navigation guide](docs/v07-navigation.md) and [simulation/iPhone checklist](docs/v07-iphone-checklist.md). Earlier reliability work is described in [V0.6 notes](docs/v06-reliability.md).
+Read the [V0.8 navigation guide](docs/v08-mapbox-navigation.md) and [simulator/iPhone checklist](docs/v08-iphone-checklist.md). Earlier work remains documented in the [V0.7 guide](docs/v07-navigation.md) and [V0.6 reliability notes](docs/v06-reliability.md).

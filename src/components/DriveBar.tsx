@@ -133,7 +133,7 @@ export function DriveBar({ planning = false }: { planning?: boolean }) {
           {!planning && progress.progressAvailable && (
             <View
               accessible
-              accessibilityLabel={`${Math.round(progress.percentageCompleted)} percent complete, estimated from GPS`}
+              accessibilityLabel={`${Math.round(progress.percentageCompleted)} percent complete${navigation.mode === "native" ? "" : ", estimated from GPS"}`}
               style={{
                 backgroundColor: colors.elevated,
                 height: 3,
@@ -152,17 +152,27 @@ export function DriveBar({ planning = false }: { planning?: boolean }) {
           )}
           {!planning && (
             <Text style={{ ...type.small, color: colors.muted }}>
-              {progress.offRoute
-                ? "Checking your position against the route"
-                : progress.estimated
-                  ? "Remaining journey · GPS estimate"
-                  : "Last route estimate · waiting for accurate GPS"}
+              {navigation.mode === "native"
+                ? "Remaining journey"
+                : progress.offRoute
+                  ? "Checking your position against the route"
+                  : progress.estimated
+                    ? "Remaining journey · GPS estimate"
+                    : "Last route estimate · waiting for accurate GPS"}
             </Text>
           )}
         </>
       ) : (
         <Text style={{ ...type.small, color: colors.muted }}>
           A verified route is needed to start driving.
+        </Text>
+      )}
+      {navigation.notice && (
+        <Text
+          accessibilityLiveRegion="polite"
+          style={{ ...type.small, color: colors.muted }}
+        >
+          {navigation.notice}
         </Text>
       )}
       {planning && (

@@ -27,6 +27,35 @@ export class TripController {
   private stopConfirmations = 0;
   private lastStopFix = 0;
   nativeAuthority = false;
+  acceptNativeRoute = (
+    value:
+      | import("../../modules/roam-navigation/src/types").NavigationEvent["route"]
+      | null,
+  ) => {
+    const trip = this.state.trip;
+    if (
+      !value ||
+      !this.nativeAuthority ||
+      !trip?.startedAt ||
+      this.request ||
+      trip.route?.id === value.id
+    )
+      return;
+    this.update({
+      ...this.state,
+      trip: {
+        ...trip,
+        route: {
+          ...value,
+          source: "verified",
+          destination: trip.destination,
+          origin: value.legs[0]!.start,
+          end: value.legs.at(-1)!.end,
+        },
+      },
+      progress: null,
+    });
+  };
   beforeNativeCommit:
     ((trip: ActiveTrip, signal: AbortSignal) => Promise<boolean>) | null = null;
   finish = () => {

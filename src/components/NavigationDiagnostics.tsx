@@ -18,7 +18,7 @@ export function NavigationDiagnostics() {
       if (active)
         setAvailability(
           a.available
-            ? `Available · ${a.version ?? ""}`
+            ? `${a.provider ?? "Native"} · ${a.version ?? ""} · Maps ${a.mapsVersion ?? "—"} · token ${a.tokenConfigured ? "configured" : "unknown"} · core ${a.initialized ? "initialized" : "lazy"}`
             : `Disabled/unavailable · ${a.reason ?? ""}`,
         );
     });
@@ -42,6 +42,9 @@ export function NavigationDiagnostics() {
       <Eyebrow>NATIVE NAVIGATION · SESSION ONLY</Eyebrow>
       <Text style={{ color: colors.text }}>
         SDK: {availability}
+        {"\n"}Provider: {n.provider ?? "fallback / idle"}
+        {"\n"}Route: {n.geometry?.length ? "Received" : "Waiting"}
+        {"\n"}Voice instruction: {n.voice ? "Received" : "Waiting"}
         {"\n"}Session: {n.mode}
         {"\n"}Guidance: {n.guidance ? "Received" : "Waiting"}
         {"\n"}Current road: {n.currentRoad ?? "Not exposed by this feed"}

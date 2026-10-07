@@ -5,7 +5,11 @@ export type * from "./types";
 export function nativeNavigation(): NativeNavigation | null {
   if (Platform.OS !== "ios") return null;
   try {
-    return requireOptionalNativeModule<NativeNavigation>("RoamNavigation");
+    const module =
+      requireOptionalNativeModule<NativeNavigation>("RoamNavigation");
+    // A V0.7 binary may have the same module name. Never select its Google
+    // adapter; the v3 bridge advertises its routing capability.
+    return typeof module?.calculateRoute === "function" ? module : null;
   } catch {
     return null;
   }

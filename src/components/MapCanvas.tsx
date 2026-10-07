@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 import { requireNativeView } from "expo";
-import type { ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import type { ViewProps } from "react-native";
 import { StyleSheet } from "react-native";
 import { nativeNavigation } from "../../modules/roam-navigation/src";
@@ -10,6 +10,7 @@ import { LegacyMapCanvas } from "./LegacyMapCanvas";
 import type { MapCanvasProps } from "./MapCanvas.types";
 type NativeMapProps = ViewProps & {
   theme: string;
+  routeID: string;
   cameraMode: string;
   waypoints: {
     id: string;
@@ -25,19 +26,35 @@ type NativeMapProps = ViewProps & {
   onCameraChange: (e: { nativeEvent: { mode: string } }) => void;
 };
 const NativeMap =
-  Platform.OS === "ios" &&
-  nativeNavigation() &&
-  process.env.EXPO_PUBLIC_GOOGLE_MAPS_IOS_KEY
+  Platform.OS === "ios" && nativeNavigation()
     ? (requireNativeView("RoamNavigation") as ComponentType<NativeMapProps>)
     : null;
 export function MapCanvas(props: MapCanvasProps) {
   const { theme } = useTheme();
   const { navigation, navigator } = useRoam();
-  if (!NativeMap) return <LegacyMapCanvas {...props} />;
+  const [mapboxAvailable, setMapboxAvailable] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    void navigator.available().then((a) => {
+      if (mounted) setMapboxAvailable(a.available && a.provider === "mapbox");
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [navigator]);
+  if (
+    !NativeMap ||
+    !mapboxAvailable ||
+    (props.route &&
+      props.route.provider !== "mapbox" &&
+      navigation.mode !== "native")
+  )
+    return <LegacyMapCanvas {...props} />;
   return (
     <NativeMap
       style={StyleSheet.absoluteFill}
       theme={theme.id}
+      routeID={props.route?.provider === "mapbox" ? props.route.id : ""}
       cameraMode={navigation.camera}
       waypoints={[
         ...props.stops.filter((s) => !s.visited).map((s) => s.place),
@@ -49,7 +66,9 @@ export function MapCanvas(props: MapCanvasProps) {
       geometry={
         navigation.mode === "native"
           ? (navigation.geometry ?? [])
-          : (props.route?.geometry ?? [])
+          : props.route?.provider === "mapbox"
+            ? props.route.geometry
+            : []
       }
       coordinate={
         props.coordinate

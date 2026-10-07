@@ -9,6 +9,7 @@ import { tripProgress } from "../../utils/tripProgress";
 import type { PendingAction } from "./references";
 import { LIMITS } from "../../../shared/limits";
 import { freshDetour } from "../detours";
+import type { NavigationState } from "../navigation/NavigationController";
 export function placeFact(place: Place, now = Date.now()): PlaceFact {
   const detour = freshDetour(place, now);
   const {
@@ -35,6 +36,7 @@ export function placeFact(place: Place, now = Date.now()): PlaceFact {
           verifiedDetourSeconds: detour.durationSeconds,
           verifiedDetourMeters: detour.distanceMeters,
           detourCalculatedAt: detour.calculatedAt,
+          detourProvider: detour.provider ?? "google",
         }
       : {}),
   };
@@ -48,15 +50,33 @@ export function buildContext(
   now = Date.now(),
   accuracy?: number | null,
   trackedProjection?: import("../../utils/geo").RouteProjection | null,
+  navigation?: NavigationState,
 ): AssistantContext {
-  const progress = tripProgress(
-    trip,
-    location,
-    fresh,
-    now,
-    accuracy,
-    trackedProjection,
-  );
+  const guidance =
+    navigation?.mode === "native" &&
+    !navigation.rerouting &&
+    navigation.updatedAt !== null &&
+    now - navigation.updatedAt >= 0 &&
+    now - navigation.updatedAt <= 15000
+      ? navigation.guidance
+      : null;
+  const progress =
+    navigation?.mode === "native"
+      ? guidance
+        ? {
+            distanceMeters: guidance.remainingDistanceMeters,
+            durationSeconds: guidance.remainingDurationSeconds,
+            arrivalTime: new Date(
+              now + guidance.remainingDurationSeconds * 1000,
+            ).toISOString(),
+            completedMeters: guidance.distanceTraveledMeters ?? 0,
+            percentageCompleted: (guidance.fractionTraveled ?? 0) * 100,
+            progressAvailable: guidance.fractionTraveled !== undefined,
+            estimated: false,
+            offRoute: false,
+          }
+        : null
+      : tripProgress(trip, location, fresh, now, accuracy, trackedProjection);
   return {
     destination:
       trip?.destination.source === "verified"
@@ -66,6 +86,9 @@ export function buildContext(
       trip?.stops.map((stop) => ({ id: stop.id, name: stop.place.name })) ?? [],
     routeAvailable: Boolean(trip?.route),
     tripStarted: Boolean(trip?.startedAt),
+    ...(navigation?.provider || trip?.route?.provider
+      ? { routeProvider: navigation?.provider ?? trip!.route!.provider }
+      : {}),
     distanceMeters: progress?.distanceMeters ?? null,
     etaSeconds: progress?.durationSeconds ?? null,
     calculatedAt: trip?.route?.calculatedAt ?? null,

@@ -91,6 +91,7 @@ function useSession() {
         getSnapshot: () => ({
           ...roamRef.current.tripState,
           progress: roamRef.current.tripState.progress ?? null,
+          navigation: roamRef.current.navigation,
         }),
         applyStopsAtomic: (trip, stops, signal) =>
           roamRef.current.applyAssistantStops(trip, stops, signal),
@@ -156,6 +157,8 @@ function useSession() {
           if (local) {
             if (local.action === "recenter")
               roamRef.current.navigator.setCamera("FOLLOW");
+            if (local.action === "overview")
+              roamRef.current.navigator.setCamera("OVERVIEW");
             reply = { text: local.text, spokenText: local.text };
           } else if (mode === "gemini")
             reply = await engineRef.current!.send(

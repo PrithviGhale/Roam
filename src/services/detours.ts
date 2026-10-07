@@ -5,6 +5,7 @@ import type {
   RoutesService,
   RequestOptions,
   VerifiedDetour,
+  RouteProvider,
 } from "../types/domain";
 import { distanceBetween, projectOntoRoute } from "../utils/geo";
 import { LIMITS } from "../../shared/limits";
@@ -31,11 +32,25 @@ export function detourInsertionIndex(trip: ActiveTrip, place: Place): number {
   return next < 0 ? trip.stops.length : next;
 }
 export function compareRoutes(
-  baseline: { durationSeconds: number; distanceMeters: number },
-  candidate: { durationSeconds: number; distanceMeters: number },
+  baseline: {
+    durationSeconds: number;
+    distanceMeters: number;
+    provider?: RouteProvider;
+  },
+  candidate: {
+    durationSeconds: number;
+    distanceMeters: number;
+    provider?: RouteProvider;
+  },
   insertionIndex: number,
   now: number,
 ): VerifiedDetour {
+  const provider = baseline.provider ?? "google";
+  if (provider !== (candidate.provider ?? "google"))
+    throw new ServiceError(
+      "invalid-data",
+      "Routes from different providers cannot be compared.",
+    );
   return {
     // Signed deltas: a different route can legitimately be quicker/shorter.
     durationSeconds: candidate.durationSeconds - baseline.durationSeconds,
@@ -46,7 +61,11 @@ export function compareRoutes(
     candidateDistanceMeters: candidate.distanceMeters,
     calculatedAt: new Date(now).toISOString(),
     insertionIndex,
-    source: "google-routes-comparison",
+    source:
+      provider === "mapbox"
+        ? "mapbox-routes-comparison"
+        : "google-routes-comparison",
+    provider,
   };
 }
 export class DetourService {
@@ -127,7 +146,7 @@ export class DetourService {
             origin,
             trip.destination,
             stops.filter((s) => !s.visited),
-            options,
+            { ...options, requiredProvider: baseline.provider ?? "google" },
           );
           if (options?.signal?.aborted)
             throw new ServiceError("cancelled", "Request cancelled.");

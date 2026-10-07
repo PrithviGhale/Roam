@@ -44,9 +44,9 @@ export function useRouteProgress() {
           arrivalTime: new Date(
             Date.now() + g.remainingDurationSeconds * 1000,
           ).toISOString(),
-          completedMeters: 0,
-          percentageCompleted: 0,
-          progressAvailable: false,
+          completedMeters: g.distanceTraveledMeters ?? 0,
+          percentageCompleted: (g.fractionTraveled ?? 0) * 100,
+          progressAvailable: g.fractionTraveled !== undefined,
           estimated: false,
           offRoute: false,
         }

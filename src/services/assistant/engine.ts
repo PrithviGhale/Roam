@@ -127,15 +127,17 @@ export class AssistantEngine {
       this.now(),
       this.getAccuracy?.(),
       this.trackedProjection(),
+      this.trip.getSnapshot().navigation,
     );
     if (!context.destination)
       return this.reply(
         "You don’t have an active destination. Choose one on the map first.",
         { kind: "status" },
       );
-    const timing = context.routeAvailable
-      ? `${formatDuration(context.etaSeconds)} and ${formatDistance(context.distanceMeters)}${context.estimatedRemaining ? " remaining, estimated from GPS progress" : " on the route, from the last Google calculation"}.`
-      : "The route estimate is unavailable right now.";
+    const timing =
+      context.routeAvailable && context.etaSeconds !== null
+        ? `${formatDuration(context.etaSeconds)} and ${formatDistance(context.distanceMeters)}${context.estimatedRemaining ? " remaining, estimated from GPS progress" : context.routeProvider === "mapbox" ? " remaining, from live navigation" : " on the route, from the last Google calculation"}.`
+        : "The route estimate is unavailable right now.";
     const arrival = context.arrivalTime
       ? ` Arrival around ${formatArrivalTime(context.arrivalTime)}.`
       : context.tripStarted
@@ -244,6 +246,8 @@ export class AssistantEngine {
             null,
             this.now(),
             this.getAccuracy?.(),
+            this.trackedProjection(),
+            this.trip.getSnapshot().navigation,
           ),
         });
       }
@@ -278,6 +282,8 @@ export class AssistantEngine {
               null,
               this.now(),
               this.getAccuracy?.(),
+              this.trackedProjection(),
+              this.trip.getSnapshot().navigation,
             ),
           },
         );
@@ -436,6 +442,8 @@ export class AssistantEngine {
           null,
           this.now(),
           this.getAccuracy?.(),
+          this.trackedProjection(),
+          this.trip.getSnapshot().navigation,
         ),
       });
     } catch (error) {
@@ -507,7 +515,7 @@ export class AssistantEngine {
       const limitations = {
         weather: "I don’t have live weather connected yet.",
         traffic:
-          "I don’t have live traffic, police, or hazard reports. The map’s route time is a Google calculation snapshot.",
+          "I don’t have live traffic, police, or hazard reports. Route time comes from your current routing provider.",
         fuelPrices: "I don’t have verified fuel prices.",
         detour:
           "Ask me to find a stop with a detour limit. I can compare top candidates when your route and GPS are ready.",
@@ -568,6 +576,7 @@ export class AssistantEngine {
             this.now(),
             this.getAccuracy?.(),
             this.trackedProjection(),
+            this.trip.getSnapshot().navigation,
           ),
         },
         signal,

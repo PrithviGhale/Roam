@@ -20,7 +20,7 @@ async function main() {
   assert.ok(!plist.UIBackgroundModes?.includes("audio"));
   assert.ok(!plist.UIBackgroundModes?.includes("location"));
   assert.equal(exp.sdkVersion, "57.0.0");
-  assert.equal(exp.version, "0.7.0");
+  assert.equal(exp.version, "0.8.0");
   assert.equal(exp.ios?.bundleIdentifier, "com.prithvighale.roam");
   assert.equal(exp.orientation, "portrait");
   const eas = JSON.parse(readFileSync("eas.json", "utf8"));
@@ -29,10 +29,7 @@ async function main() {
   assert.equal(eas.build.development.environment, "development");
   assert.equal(eas.build.development.env.ROAM_ENABLE_NAVIGATION, "false");
   assert.equal(eas.build.preview.env.ROAM_ENABLE_NAVIGATION, "false");
-  assert.equal(
-    plist.ROAMNavigationEnabled,
-    process.env.ROAM_ENABLE_NAVIGATION === "true",
-  );
+  assert.equal(plist.ROAMNavigationEnabled, false);
   const module = JSON.parse(
     readFileSync("modules/roam-navigation/expo-module.config.json", "utf8"),
   );
@@ -41,7 +38,15 @@ async function main() {
     "modules/roam-navigation/ios/RoamNavigation.podspec",
     "utf8",
   );
-  assert.ok(pod.includes("vendor/GoogleNavigation.xcframework"));
+  assert.ok(pod.includes("spm_dependency(s"));
+  assert.ok(pod.includes("3.32.0"));
+  assert.ok(pod.includes("MapboxNavigationCore"));
+  assert.ok(!pod.includes("GoogleNavigation.xcframework"));
+  assert.equal(plist.ROAMNavigationProvider, "mapbox");
+  assert.equal(
+    plist.MBXAccessToken,
+    process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim() || "",
+  );
   const manifest = JSON.parse(readFileSync("package.json", "utf8"));
   assert.ok(manifest.scripts["eas-build-pre-install"]);
   assert.ok(!manifest.scripts["eas-build-post-install"]);
@@ -50,7 +55,7 @@ async function main() {
     !serialized.includes("accesskey") && !serialized.includes("access-key"),
   );
   console.log(
-    "Native config passed: SDK 57 / V0.7, microphone/speech/foreground location, no background audio/location, no wake AccessKey in public extra.",
+    "Native config passed: SDK 57 / V0.8, microphone/speech/foreground location, no background audio/location, no wake AccessKey in public extra.",
   );
 }
 void main().catch(() => {

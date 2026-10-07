@@ -3,18 +3,35 @@ export function navigationCommand(
   input: string,
   state: NavigationState,
   destination?: string,
-): { action?: "recenter" | "silence"; text: string } | null {
+): { action?: "recenter" | "overview" | "silence"; text: string } | null {
   const text = input
     .toLowerCase()
     .trim()
     .replace(/[?.!]+$/, "");
-  if (["recenter map", "recenter the map"].includes(text))
+  if (["recenter", "recenter map", "recenter the map"].includes(text))
     return { action: "recenter", text: "Map centered." };
+  if (
+    ["overview", "show route overview", "show the whole route"].includes(text)
+  )
+    return { action: "overview", text: "Showing your route." };
   if (["stop speaking", "be quiet"].includes(text))
     return { action: "silence", text: "" };
   if (state.mode !== "native") return null;
   if (state.updatedAt === null || Date.now() - state.updatedAt > 15000)
     return { text: "Live directions are unavailable right now." };
+  if (
+    ["how much longer", "when will i arrive", "what's my eta"].includes(text)
+  ) {
+    if (!state.guidance || state.rerouting)
+      return { text: "Updating your arrival estimate." };
+    const seconds = state.guidance.remainingDurationSeconds;
+    return {
+      text:
+        text === "how much longer"
+          ? `About ${Math.max(1, Math.round(seconds / 60))} minutes remaining.`
+          : `Arrival around ${new Date(Date.now() + seconds * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`,
+    };
+  }
   if (["where am i going", "what's my destination"].includes(text))
     return {
       text: destination
@@ -46,6 +63,7 @@ export function navigationCommand(
       "how far to the next turn",
       "how far until the next turn",
       "how long until my exit",
+      "how far until the exit",
     ].includes(text)
   )
     return {

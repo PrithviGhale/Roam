@@ -72,6 +72,7 @@ export function normalizeRoute(
     distanceMeters,
     durationSeconds,
     source: "verified",
+    provider: "google",
     origin: legs[0]?.start ?? origin,
     end: legs.at(-1)?.end ?? destination.coordinate,
     legs,

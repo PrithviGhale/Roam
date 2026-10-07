@@ -10,10 +10,30 @@ export const speechPriority = {
 export class GuidanceSpeech {
   private step = "";
   private bands = new Set<number>();
+  private voiceSequence = -1;
   next(
     state: NavigationState,
     now = Date.now(),
   ): { text: string; priority: number } | null {
+    if (state.provider === "mapbox") {
+      const v = state.voice;
+      if (
+        state.mode !== "native" ||
+        state.rerouting ||
+        state.waypointId ||
+        !v ||
+        now - v.timestamp > 5000 ||
+        v.sequence <= this.voiceSequence
+      )
+        return null;
+      this.voiceSequence = v.sequence;
+      return {
+        text: v.text,
+        priority: v.critical
+          ? speechPriority.CRITICAL_NAVIGATION
+          : speechPriority.NAVIGATION,
+      };
+    }
     const g = state.guidance;
     if (
       state.mode !== "native" ||
@@ -46,6 +66,7 @@ export class GuidanceSpeech {
     };
   }
   reset() {
+    this.voiceSequence = -1;
     this.step = "";
     this.bands.clear();
   }

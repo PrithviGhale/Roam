@@ -227,7 +227,7 @@ export function ManeuverRail() {
           Done
         </Button>
       )}
-      <GoogleAttribution compact />
+      {nav.provider !== "mapbox" && <GoogleAttribution compact />}
     </View>
   );
 }

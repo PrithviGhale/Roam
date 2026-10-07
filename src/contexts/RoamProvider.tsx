@@ -13,7 +13,7 @@ import { NavigationController } from "../services/navigation/NavigationControlle
 import { nativeNavigation } from "../../modules/roam-navigation/src";
 import type { NavigationState } from "../services/navigation/NavigationController";
 import { TripController } from "../services/tripController";
-import { routesService } from "../services/routes";
+import { routesService, configureNavigationRouting } from "../services/routes";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   decodeRecovery,
@@ -64,6 +64,11 @@ export function RoamProvider({ children }: PropsWithChildren) {
   const [navigator] = useState(
     () => new NavigationController(nativeNavigation()),
   );
+  configureNavigationRouting(nativeNavigation(), () =>
+    navigator.getSnapshot().mode === "native"
+      ? navigator.getSnapshot().provider
+      : null,
+  );
   const navigation = useSyncExternalStore(
     navigator.subscribe,
     navigator.getSnapshot,
@@ -92,9 +97,15 @@ export function RoamProvider({ children }: PropsWithChildren) {
       controller.getSnapshot().status !== "ready"
     )
       return;
-    await navigator.start(expected);
-    if (controller.getSnapshot().trip === expected) controller.start();
-    else await navigator.stop();
+    await navigator.start(
+      expected,
+      locationRef.current.fresh ? locationRef.current.coordinate : null,
+    );
+    if (controller.getSnapshot().trip === expected) {
+      controller.start();
+      controller.nativeAuthority = navigator.getSnapshot().mode === "native";
+      controller.acceptNativeRoute(navigator.getSnapshot().route);
+    } else await navigator.stop();
   };
   const selectDestination = async (place: Place) => {
     await navigator.stop();
@@ -105,6 +116,9 @@ export function RoamProvider({ children }: PropsWithChildren) {
     controller.getSnapshot,
     controller.getSnapshot,
   );
+  useEffect(() => {
+    controller.acceptNativeRoute(navigation.route);
+  }, [controller, navigation.route, tripState.status]);
   useEffect(() => () => controller.dispose(), [controller]);
   useEffect(() => {
     let mounted = true;

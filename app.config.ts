@@ -5,7 +5,8 @@ import { join } from "node:path";
 const config: ExpoConfig = {
   name: "ROAM",
   slug: "roam",
-  version: "0.7.0",
+  owner: "pghale",
+  version: "0.8.0",
   orientation: "portrait",
   scheme: "roam",
   userInterfaceStyle: "automatic",
@@ -18,6 +19,7 @@ const config: ExpoConfig = {
   },
   web: { bundler: "metro", output: "single" },
   extra: {
+    eas: { projectId: "e9fd4c61-2786-4fd6-9938-9596719a06f3" },
     roamWakeModelBundled: existsSync(
       join(__dirname, "assets/wake/hey-roam_ios.ppn"),
     ),
@@ -33,7 +35,7 @@ const config: ExpoConfig = {
     [
       "react-native-maps",
       {
-        // iOS uses the local module and current Google SDK, avoiding the maps pod pin.
+        // iOS navigation uses Mapbox; fallback maps use the platform map.
         androidGoogleMapsApiKey:
           process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY,
       },

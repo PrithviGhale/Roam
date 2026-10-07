@@ -1,12 +1,13 @@
 import {
   eventSchema,
+  nativeRouteSchema,
   type NativeNavigation,
   type NavigationEvent,
   type Guidance,
   type CameraMode,
   type Waypoint,
 } from "../../../modules/roam-navigation/src/types";
-import type { ActiveTrip } from "../../types/domain";
+import type { ActiveTrip, Coordinate } from "../../types/domain";
 
 export function waypointPlan(trip: ActiveTrip): Waypoint[] {
   return [
@@ -51,11 +52,19 @@ export function normalizeManeuver(value: string) {
   return aliases[value] ?? "unknown";
 }
 export interface NavigationState {
+  provider: "mapbox" | "google" | "fallback" | null;
+  voice: {
+    text: string;
+    critical: boolean;
+    sequence: number;
+    timestamp: number;
+  } | null;
   mode: "idle" | "starting" | "native" | "fallback" | "arrived";
   session: string | null;
   sequence: number;
   guidance: Guidance | null;
   geometry: NavigationEvent["geometry"];
+  route: NavigationEvent["route"] | null;
   location: NavigationEvent["location"] | null;
   currentRoad: string | null;
   rerouting: boolean;
@@ -66,11 +75,14 @@ export interface NavigationState {
   events: { timestamp: number; label: string }[];
 }
 export const initialNavigation = (): NavigationState => ({
+  provider: null,
+  voice: null,
   mode: "idle",
   session: null,
   sequence: -1,
   guidance: null,
   geometry: undefined,
+  route: null,
   location: null,
   currentRoad: null,
   rerouting: false,
@@ -92,6 +104,7 @@ export function navigationReducer(
     return state;
   const next = {
     ...state,
+    provider: event.provider ?? state.provider,
     sequence: event.sequence,
     events: [
       ...state.events,
@@ -111,15 +124,33 @@ export function navigationReducer(
             ...next,
             guidance: event.guidance,
             updatedAt: event.timestamp,
-            rerouting: false,
+            rerouting: next.provider === "mapbox" ? state.rerouting : false,
+            location: event.location ?? state.location,
+            currentRoad: event.road ?? state.currentRoad,
+            notice: null,
           }
         : next;
     case "rerouting":
-      return { ...next, rerouting: true };
+      return { ...next, rerouting: true, voice: null };
+    case "rerouted":
+      return { ...next, rerouting: false };
+    case "voice":
+      return event.voice && !next.rerouting
+        ? {
+            ...next,
+            voice: {
+              ...event.voice,
+              sequence: event.sequence,
+              timestamp: event.timestamp,
+            },
+          }
+        : next;
     case "route":
       return {
         ...next,
         geometry: event.geometry ?? next.geometry,
+        route: event.route ?? next.route,
+        voice: null,
         rerouting: false,
       };
     case "location":
@@ -181,17 +212,18 @@ export class NavigationController {
   };
   available = async () => {
     try {
-      return (
-        (await this.native?.availability()) ?? {
-          available: false,
-          reason: "missing-module",
-        }
-      );
+      const status = (await this.native?.availability()) ?? {
+        available: false,
+        reason: "missing-module",
+      };
+      return status.provider === "google"
+        ? { ...status, available: false, reason: "unsupported-provider" }
+        : status;
     } catch {
       return { available: false, reason: "initialization" };
     }
   };
-  start = async (trip: ActiveTrip) => {
+  start = async (trip: ActiveTrip, origin?: Coordinate | null) => {
     if (this.state.mode === "starting" || this.state.mode === "native")
       return false;
     const epoch = ++this.epoch;
@@ -204,6 +236,23 @@ export class NavigationController {
       const available = await this.available();
       if (epoch !== this.epoch) return false;
       if (!available.available || !this.native) throw new Error("unavailable");
+      let routeID =
+        trip.route?.provider === "mapbox" ? trip.route.id : undefined;
+      if (available.provider === "mapbox" && !routeID) {
+        this.set({
+          ...this.state,
+          provider: "mapbox",
+          notice: "Updating this route for turn-by-turn guidance.",
+        });
+        if (!origin || !this.native.calculateRoute) throw new Error("origin");
+        const route = nativeRouteSchema.parse(
+          await this.native.calculateRoute(origin, waypointPlan(trip)),
+        );
+        if (epoch !== this.epoch) return false;
+        if (route.legs.length !== waypointPlan(trip).length)
+          throw new Error("route-plan");
+        routeID = route.id;
+      }
       this.subscription = this.native.addListener(
         "onNavigationEvent",
         this.accept,
@@ -211,6 +260,7 @@ export class NavigationController {
       const accepted = await this.native.start(
         this.state.session!,
         waypointPlan(trip),
+        routeID,
       );
       if (epoch !== this.epoch) return false;
       if (!accepted) throw new Error("start");
@@ -219,14 +269,14 @@ export class NavigationController {
     } catch {
       if (epoch === this.epoch) {
         await this.native?.stop().catch(() => {});
+        if (epoch !== this.epoch) return false;
         this.subscription?.remove();
         this.subscription = null;
         this.set({
           ...initialNavigation(),
           mode: "fallback",
           camera: "FOLLOW",
-          notice:
-            "Turn-by-turn guidance requires a configured ROAM development build.",
+          notice: "Turn-by-turn guidance is unavailable. Your trip is kept.",
         });
       }
       return false;
@@ -244,8 +294,10 @@ export class NavigationController {
         return false;
       try {
         return (
-          !!(await this.native?.update(waypointPlan(trip))) &&
-          epoch === this.epoch
+          !!(await this.native?.update(
+            waypointPlan(trip),
+            trip.route?.provider === "mapbox" ? trip.route.id : undefined,
+          )) && epoch === this.epoch
         );
       } catch {
         return false;
@@ -280,7 +332,9 @@ export class NavigationController {
   };
   licenses = () =>
     this.native?.licenses() ??
-    Promise.resolve("Native Google SDK is not installed.");
+    Promise.resolve(
+      "Native navigation SDK is not installed. Mapbox: https://www.mapbox.com/about/maps/",
+    );
   stop = async () => {
     ++this.epoch;
     this.subscription?.remove();

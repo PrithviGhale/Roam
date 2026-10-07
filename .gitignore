@@ -30,3 +30,7 @@ modules/roam-navigation/ios/vendor/
 !modules/roam-navigation/ios/
 !modules/roam-navigation/ios/*.swift
 !modules/roam-navigation/ios/*.podspec
+
+!modules/roam-navigation/ios/providers/
+!modules/roam-navigation/ios/providers/**
+.netrc

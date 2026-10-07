@@ -2,6 +2,7 @@ export interface Coordinate {
   latitude: number;
   longitude: number;
 }
+export type RouteProvider = "mapbox" | "google" | "fallback";
 export type PlaceCategory = "food" | "gas" | "restroom" | "coffee" | "parking";
 export interface Place {
   id: string;
@@ -31,7 +32,8 @@ export interface VerifiedDetour {
   candidateDistanceMeters: number;
   calculatedAt: string;
   insertionIndex: number;
-  source: "google-routes-comparison";
+  source: "google-routes-comparison" | "mapbox-routes-comparison";
+  provider?: RouteProvider;
 }
 export interface PlaceSuggestion {
   id: string;
@@ -43,6 +45,7 @@ export interface PlaceSuggestion {
 export interface RequestOptions {
   signal?: AbortSignal;
   sessionToken?: string;
+  requiredProvider?: RouteProvider;
 }
 export interface RouteLeg {
   distanceMeters: number;
@@ -57,6 +60,7 @@ export interface Route {
   distanceMeters: number;
   durationSeconds: number;
   source: "verified";
+  provider?: RouteProvider;
   origin: Coordinate;
   end: Coordinate;
   legs: RouteLeg[];
@@ -76,6 +80,7 @@ export interface ActiveTrip {
   completedBeforeRouteMeters?: number;
 }
 export interface TripState {
+  navigation?: import("../services/navigation/NavigationController").NavigationState;
   trip: ActiveTrip | null;
   status: "idle" | "loading" | "ready" | "error";
   error: string | null;

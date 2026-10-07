@@ -178,7 +178,7 @@ export default function ProfileScreen() {
         Maps licenses
       </Button>
       <Text style={{ ...type.small, color: colors.muted }}>
-        ROAM 0.7.0 · Your AI for the road.
+        ROAM 0.8.0 · Your AI for the road.
       </Text>
     </Page>
   );

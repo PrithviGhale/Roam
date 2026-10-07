@@ -429,7 +429,7 @@ test("bridge rejects bad coordinates/unsupported enums and schema drift", () => 
     false,
   );
   const swift = readFileSync(
-    "modules/roam-navigation/ios/GuidanceAdapter.swift",
+    "modules/roam-navigation/ios/providers/google/GuidanceAdapter.swift",
     "utf8",
   );
   for (const m of maneuvers) assert.ok(swift.includes(`"${m}"`), m);

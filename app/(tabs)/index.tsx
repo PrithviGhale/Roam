@@ -12,7 +12,6 @@ import { useTheme } from "../../src/themes/ThemeProvider";
 import { useRoam } from "../../src/contexts/RoamProvider";
 import { useAssistant } from "../../src/contexts/AssistantProvider";
 import { MapCanvas } from "../../src/components/MapCanvas";
-import { Brand } from "../../src/components/Brand";
 import { SearchBar } from "../../src/components/SearchBar";
 import { QuickActions } from "../../src/components/QuickActions";
 import { LocationNotice } from "../../src/components/LocationNotice";
@@ -23,7 +22,12 @@ import { DriveBar } from "../../src/components/DriveBar";
 import { ManeuverRail } from "../../src/components/ManeuverRail";
 import { RoamPulse, voiceLabels } from "../../src/components/RoamPulse";
 import { IconButton } from "../../src/components/ui";
-import { tripMode, phoneLayout, overlayReducer } from "../../src/design/layout";
+import {
+  tripMode,
+  phoneLayout,
+  overlayReducer,
+  mapChromeBudget,
+} from "../../src/design/layout";
 import { radius, space, type } from "../../src/design/tokens";
 import type { PlaceCategory, Place } from "../../src/types/domain";
 export default function MapScreen() {
@@ -69,7 +73,7 @@ export default function MapScreen() {
             : null
         }
         recenterToken={recenter}
-        bottomInset={bottomHeight + space.xl}
+        bottomInset={bottomHeight + insets.bottom + 100}
         topInset={topHeight + space.md}
       />
       <View
@@ -85,32 +89,6 @@ export default function MapScreen() {
           paddingHorizontal: layout.gutter,
         }}
       >
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <Brand />
-          <View
-            style={{
-              backgroundColor: colors.surface,
-              paddingHorizontal: space.sm,
-              paddingVertical: space.xs,
-              borderRadius: radius.sm,
-            }}
-          >
-            <Text
-              style={{
-                ...type.label,
-                color: driving ? colors.accent : colors.muted,
-              }}
-            >
-              {driving ? "DRIVE" : "PLAN"}
-            </Text>
-          </View>
-        </View>
         {!driving && <SearchBar onPress={() => openPlaces(null)} />}
         <ManeuverRail />
       </View>
@@ -120,9 +98,9 @@ export default function MapScreen() {
         contentContainerStyle={{ gap: space.sm }}
         onLayout={(event) => setBottomHeight(event.nativeEvent.layout.height)}
         style={{
-          maxHeight: Math.max(120, mapHeight - topHeight - space.xl),
+          maxHeight: mapChromeBudget(mapHeight, topHeight),
           position: "absolute",
-          bottom: space.md,
+          bottom: insets.bottom + 86,
           left: insets.left + layout.gutter,
           right: insets.right + layout.gutter,
         }}
@@ -189,57 +167,59 @@ export default function MapScreen() {
           <LocationNotice />
         ) : null}
         <View
+          pointerEvents="box-none"
           style={{
             flexDirection: "row",
             alignItems: "center",
-            backgroundColor: colors.surface,
-            borderRadius: radius.lg,
-            borderWidth: 1,
-            borderColor: colors.border,
+            justifyContent: "space-between",
+            gap: 12,
           }}
         >
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Open ROAM assistant, ${voiceLabels[assistant.voicePhase]}`}
+            accessibilityLabel="Open ROAM assistant"
             onPress={() => dispatch({ kind: "assistant" })}
             style={{
               flex: 1,
-              minHeight: 60,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: space.sm,
-              padding: space.sm,
+              minHeight: 48,
+              justifyContent: "center",
+              paddingLeft: 4,
             }}
           >
-            <RoamPulse phase={assistant.voicePhase} size={36} />
-            <View style={{ flex: 1 }}>
-              <Text style={{ ...type.heading, color: colors.text }}>ROAM</Text>
-              <Text
-                accessibilityLiveRegion="polite"
-                style={{ ...type.small, color: colors.muted }}
-              >
-                {assistant.voice.followUp
-                  ? "Your answer · listening"
-                  : (assistant.voiceNotice ??
-                    voiceLabels[assistant.voicePhase])}
-              </Text>
-            </View>
+            <Text style={{ ...type.small, color: colors.text }}>
+              {assistant.voiceNotice ??
+                (assistant.voicePhase === "inactive"
+                  ? "A little help along the way"
+                  : voiceLabels[assistant.voicePhase])}
+            </Text>
+            <Text style={{ fontSize: 11, color: colors.muted, marginTop: 3 }}>
+              Ask ROAM
+            </Text>
           </Pressable>
-          <IconButton
-            style={{ marginRight: space.xs }}
-            icon={
-              assistant.state === "listening" ? "stop-outline" : "mic-outline"
-            }
-            label={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
               assistant.state === "listening"
                 ? "Stop voice conversation"
-                : assistant.state === "speaking"
-                  ? "Interrupt speech and speak to ROAM"
-                  : "Speak to ROAM"
+                : "Speak to ROAM"
             }
-            active={assistant.state === "listening"}
             onPress={assistant.toggleVoice}
-          />
+            style={{
+              width: 58,
+              height: 58,
+              borderRadius: 29,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.surface,
+              shadowColor: "#000",
+              shadowOpacity: 0.18,
+              shadowRadius: 12,
+              shadowOffset: { width: 0, height: 5 },
+              elevation: 3,
+            }}
+          >
+            <RoamPulse phase={assistant.voicePhase} size={42} navigationAlert={roam.navigation.rerouting || roam.navigation.mode === "arrived"} />
+          </Pressable>
         </View>
         {!driving && <QuickActions onSelect={openPlaces} />}
       </ScrollView>

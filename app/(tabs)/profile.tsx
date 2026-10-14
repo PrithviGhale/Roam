@@ -6,6 +6,7 @@ import { useTheme } from "../../src/themes/ThemeProvider";
 import { useAssistant } from "../../src/contexts/AssistantProvider";
 import { LocationNotice } from "../../src/components/LocationNotice";
 import { space, radius, type } from "../../src/design/tokens";
+import { useMapTheme } from "../../src/map/MapThemeProvider";
 import { wakeRequirement } from "../../src/services/voice/types";
 function Setting({
   title,
@@ -55,12 +56,10 @@ export default function ProfileScreen() {
   const { theme, setTheme } = useTheme();
   const { colors } = theme;
   const assistant = useAssistant();
+  const mapTheme = useMapTheme();
   const { settings, updateVoiceSettings } = assistant;
   return (
-    <Page
-      title="Make ROAM yours"
-      subtitle="A calm companion. Set your preferences."
-    >
+    <Page title="Settings" subtitle="Make the road feel like yours.">
       <View style={{ gap: space.sm }}>
         <Eyebrow>APPEARANCE</Eyebrow>
         <View
@@ -140,6 +139,43 @@ export default function ProfileScreen() {
           US units in this version. Phone GPS speed is an estimate.
         </Text>
       </View>
+      <View style={{ gap: space.sm }}>
+        <Eyebrow>MAP</Eyebrow>
+        <Text style={{ ...type.body, color: colors.muted }}>
+          Your map can follow the app appearance or keep its own look.
+        </Text>
+        <View
+          accessibilityRole="radiogroup"
+          accessibilityLabel="Map theme"
+          style={{ gap: 4 }}
+        >
+          {(["automatic", "night", "day"] as const).map((value) => (
+            <Pressable
+              key={value}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: mapTheme.preference === value }}
+              onPress={() => mapTheme.setPreference(value)}
+              style={{
+                minHeight: 48,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <Text style={{ ...type.body, color: colors.text }}>
+                {value === "automatic"
+                  ? "Follow app appearance"
+                  : value === "night"
+                    ? "ROAM Night"
+                    : "ROAM Day"}
+              </Text>
+              <Text style={{ color: colors.accent }}>
+                {mapTheme.preference === value ? "Selected" : ""}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
       <LocationNotice />
       <View style={{ gap: space.sm }}>
         <Eyebrow>PRIVACY</Eyebrow>
@@ -178,7 +214,7 @@ export default function ProfileScreen() {
         Maps licenses
       </Button>
       <Text style={{ ...type.small, color: colors.muted }}>
-        ROAM 0.8.0 · Your AI for the road.
+        ROAM 0.9.0 · Your AI for the road.
       </Text>
     </Page>
   );

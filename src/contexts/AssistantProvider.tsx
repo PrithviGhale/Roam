@@ -195,6 +195,14 @@ function useSession() {
           }
           return {
             ...reply,
+            ...(reply.error &&
+            /\b(AI|Gemini|backend)\b/i.test(reply.text) &&
+            roamRef.current.navigation.mode === "native"
+              ? {
+                  errorSpokenText:
+                    "AI is temporarily unavailable. Navigation is still active.",
+                }
+              : {}),
             confirmation: engineRef.current!.hasPendingConfirmation(),
           };
         },

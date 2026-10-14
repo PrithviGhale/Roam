@@ -25,7 +25,7 @@ export function StatusCard({
       style={{
         backgroundColor: colors.surface,
         borderColor: colors.border,
-        borderWidth: 1,
+        borderWidth: 0,
         borderRadius: radius.lg,
         padding: space.md,
         gap: space.sm,

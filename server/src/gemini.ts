@@ -15,6 +15,18 @@ import {
   type ToolReceipt,
 } from "../../shared/assistant";
 import { SYSTEM_INSTRUCTION } from "./instructions";
+import type { Compose } from "./composer";
+export function plannerReasoning(
+  request: string,
+  driving: boolean,
+): "low" | "medium" {
+  return !driving &&
+    /\b(not|except|instead|twenty|minutes|cheap|compare|closer|first|second)\b/i.test(
+      request,
+    )
+    ? "medium"
+    : "low";
+}
 
 export interface ModelReply {
   content: Content;
@@ -58,23 +70,42 @@ export function normalizeModelReply(
 }
 export function createGenerate(apiKey: string, model: string): Generate {
   const ai = new GoogleGenAI({ apiKey, httpOptions: { timeout: 25000 } });
-  return async (contents, signal) =>
-    normalizeModelReply(
+  return async (contents, signal) => {
+    let reasoning: "low" | "medium" = "low";
+    for (const content of [...contents].reverse()) {
+      const text = content.parts?.find((part) => part.text)?.text;
+      try {
+        const input = JSON.parse(text ?? "");
+        if (input.verifiedContext) {
+          reasoning = plannerReasoning(
+            input.request,
+            input.verifiedContext.tripStarted,
+          );
+          break;
+        }
+      } catch {}
+    }
+    return normalizeModelReply(
       await ai.models.generateContent({
         model,
         contents,
         config: {
           systemInstruction: SYSTEM_INSTRUCTION,
           tools: [{ functionDeclarations: declarations }],
-          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-          temperature: 0.2,
+          thinkingConfig: {
+            thinkingLevel:
+              reasoning === "medium" ? ThinkingLevel.MEDIUM : ThinkingLevel.LOW,
+          },
           maxOutputTokens: 1800,
           abortSignal: signal,
         },
       }),
     );
+  };
 }
 interface Continuation {
+  request?: string;
+  driving?: boolean;
   expires: number;
   rounds: number;
   contents: Content[];
@@ -172,12 +203,20 @@ export async function runRound(
   secret: string,
   turn: AssistantTurn | { continuation: string; results: ToolReceipt[] },
   signal?: AbortSignal,
+  compose?: Compose,
 ): Promise<AssistantResponse> {
   let contents: Content[],
     rounds = 0;
-  if ("message" in turn) contents = initialContents(turn);
-  else {
+  let request = "",
+    driving = false;
+  if ("message" in turn) {
+    contents = initialContents(turn);
+    request = turn.message;
+    driving = turn.context.tripStarted;
+  } else {
     const state = await unseal(turn.continuation, secret);
+    request = state.request ?? "";
+    driving = state.driving ?? false;
     if (
       turn.results.length !== state.calls.length ||
       turn.results.some(
@@ -222,6 +261,8 @@ export async function runRound(
         {
           expires: Date.now() + 120000,
           rounds,
+          request,
+          driving,
           contents: [...contents, reply.content],
           calls: reply.calls,
         },
@@ -229,5 +270,14 @@ export async function runRound(
       ),
     };
   }
-  return { type: "response", plan: planSchema.parse(JSON.parse(reply.text)) };
+  const plan = planSchema.parse(JSON.parse(reply.text));
+  if (compose) {
+    try {
+      const receipts =
+        "results" in turn ? turn.results.map((receipt) => receipt.result) : [];
+      const phrasing = await compose(request, driving, receipts, signal);
+      if (phrasing) plan.phrasing = phrasing;
+    } catch {} // Verified receipts remain authoritative if composition fails.
+  }
+  return { type: "response", plan };
 }

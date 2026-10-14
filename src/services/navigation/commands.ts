@@ -20,7 +20,7 @@ export function navigationCommand(
   if (state.updatedAt === null || Date.now() - state.updatedAt > 15000)
     return { text: "Live directions are unavailable right now." };
   if (
-    ["how much longer", "when will i arrive", "what's my eta"].includes(text)
+    ["how much longer", "when will i arrive", "when do i arrive", "what's my eta", "what is my eta"].includes(text)
   ) {
     if (!state.guidance || state.rerouting)
       return { text: "Updating your arrival estimate." };

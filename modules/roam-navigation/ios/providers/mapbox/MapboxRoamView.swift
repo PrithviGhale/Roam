@@ -8,9 +8,11 @@ import UIKit
 /// Mapbox's route renderer/viewport underneath ROAM's React overlays. No stock
 /// navigation controller, banners, speech engine, or Google Places markers.
 final class MapboxRoamView: ExpoView, NavigationMapViewDelegate {
+  let onMapStatus = EventDispatcher()
   let onCameraChange = EventDispatcher()
   private var navigationMap: NavigationMapView?
   private var styleIsDark: Bool?
+  private var styleGeneration = 0
   private var geometry: [[String: Double]] = []
   private var previewLine: PolylineAnnotationManager?
   private var previewID = ""
@@ -41,7 +43,8 @@ final class MapboxRoamView: ExpoView, NavigationMapViewDelegate {
     map.routeLineTracksTraversal = true
     map.routeColor = UIColor(red: 0.77, green: 0.65, blue: 0.47, alpha: 1)
     map.routeCasingColor = UIColor(white: 0.13, alpha: 1)
-    map.traversedRouteColor = UIColor(white: 0.45, alpha: 0.25)
+    map.traversedRouteColor = UIColor(white: 0.45, alpha: 0.18)
+    map.routeAlternateColor = UIColor(white: 0.5, alpha: 0.5)
     map.puckType = .puck2D(Puck2DConfiguration(topImage: Self.puck(), bearingImage: nil, shadowImage: nil, scale: .constant(1)))
     if let viewport = map.navigationCamera.viewportDataSource as? MobileViewportDataSource {
       var options = viewport.options
@@ -70,8 +73,13 @@ final class MapboxRoamView: ExpoView, NavigationMapViewDelegate {
     let dark = value == "dark"
     guard dark != styleIsDark, let map = navigationMap else { return }
     styleIsDark = dark
+    styleGeneration += 1
+    let generation = styleGeneration
     overrideUserInterfaceStyle = dark ? .dark : .light
-    map.mapView.mapboxMap.loadStyle(Self.style(dark: dark)) { [weak self] _ in self?.drawPreview() }
+    RoamMapTheme.load(map.mapView.mapboxMap, dark: dark, isCurrent: { [weak self] in self?.styleGeneration == generation }) { [weak self] ready in
+      self?.onMapStatus(["state": ready ? "ready" : "unavailable"])
+      if ready { self?.drawPreview() }
+    }
   }
   func route(_ values: [[String: Double]]) { geometry = values; drawPreview() }
   func preview(_ id: String) {
@@ -132,30 +140,15 @@ final class MapboxRoamView: ExpoView, NavigationMapViewDelegate {
     return layer
   }
   private static func puck() -> UIImage {
-    UIGraphicsImageRenderer(size: CGSize(width: 42, height: 48)).image { context in
-      let path = UIBezierPath()
-      path.move(to: CGPoint(x: 21, y: 3)); path.addLine(to: CGPoint(x: 36, y: 41)); path.addLine(to: CGPoint(x: 21, y: 32)); path.addLine(to: CGPoint(x: 6, y: 41)); path.close()
-      UIColor(red: 0.84, green: 0.73, blue: 0.55, alpha: 1).setFill(); path.fill()
-      UIColor(white: 0.12, alpha: 1).setStroke(); path.lineWidth = 3; path.stroke()
+    UIGraphicsImageRenderer(size: CGSize(width: 34, height: 42)).image { context in
+      let body = UIBezierPath()
+      body.move(to: CGPoint(x: 17, y: 3)); body.addLine(to: CGPoint(x: 29, y: 18))
+      body.addLine(to: CGPoint(x: 26, y: 36)); body.addLine(to: CGPoint(x: 8, y: 36))
+      body.addLine(to: CGPoint(x: 5, y: 18)); body.close()
+      UIColor(red: 0.84, green: 0.73, blue: 0.55, alpha: 1).setFill(); body.fill()
+      UIColor(white: 0.08, alpha: 1).setStroke(); body.lineWidth = 2.5; body.stroke()
+      let lane = UIBezierPath(roundedRect: CGRect(x: 15, y: 14, width: 4, height: 14), cornerRadius: 2)
+      UIColor(white: 0.14, alpha: 1).setFill(); lane.fill()
     }
-  }
-  private static func style(dark: Bool) -> String {
-    // Original sparse vector style using Mapbox Streets data. Legal attribution
-    // remains in source metadata and the SDK's ornament controls.
-    let bg = dark ? "#101316" : "#eeeae2"
-    let land = dark ? "#171d1c" : "#d9dfd3"
-    let water = dark ? "#15212b" : "#bfd3db"
-    let road = dark ? "#394047" : "#ffffff"
-    let labels = dark ? "#aab0b3" : "#575d62"
-    return """
-    {"version":8,"name":"ROAM \(dark ? "Dark" : "Light")","glyphs":"mapbox://fonts/mapbox/{fontstack}/{range}.pbf","sources":{"streets":{"type":"vector","url":"mapbox://mapbox.mapbox-streets-v8"}},"layers":[
-    {"id":"background","type":"background","paint":{"background-color":"\(bg)"}},
-    {"id":"landuse","type":"fill","source":"streets","source-layer":"landuse","paint":{"fill-color":"\(land)","fill-opacity":0.65}},
-    {"id":"water","type":"fill","source":"streets","source-layer":"water","paint":{"fill-color":"\(water)"}},
-    {"id":"roads","type":"line","source":"streets","source-layer":"road","filter":["!=",["get","class"],"path"],"layout":{"line-cap":"round","line-join":"round"},"paint":{"line-color":"\(road)","line-width":["interpolate",["linear"],["zoom"],8,0.6,15,3,19,12]}},
-    {"id":"road-labels","type":"symbol","source":"streets","source-layer":"road","minzoom":12,"layout":{"symbol-placement":"line","text-field":["get","name"],"text-font":["DIN Pro Regular","Arial Unicode MS Regular"],"text-size":11},"paint":{"text-color":"\(labels)","text-halo-color":"\(bg)","text-halo-width":1.3}},
-    {"id":"place-labels","type":"symbol","source":"streets","source-layer":"place_label","layout":{"text-field":["get","name"],"text-font":["DIN Pro Medium","Arial Unicode MS Regular"],"text-size":13},"paint":{"text-color":"\(labels)","text-halo-color":"\(bg)","text-halo-width":1.2}}
-    ]}
-    """
   }
 }

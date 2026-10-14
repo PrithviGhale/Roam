@@ -64,7 +64,7 @@ export function BottomSheet({
               paddingBottom: Math.max(insets.bottom, 16),
               maxHeight: height - insets.top - space.md,
             },
-            tall && ({ height: height * 0.8 } as ViewStyle),
+            tall && ({ height: height * 0.78 } as ViewStyle),
           ]}
         >
           <View style={[styles.handle, { backgroundColor: colors.border }]} />
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
-    borderWidth: 1,
+    borderWidth: 0,
     paddingHorizontal: space.md,
     paddingTop: space.sm,
   },

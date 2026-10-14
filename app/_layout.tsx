@@ -5,6 +5,10 @@ import { ThemeProvider, useTheme } from "../src/themes/ThemeProvider";
 import { RoamProvider } from "../src/contexts/RoamProvider";
 import { AssistantProvider } from "../src/contexts/AssistantProvider";
 import { PowerProvider } from "../src/contexts/PowerProvider";
+import { MapThemeProvider } from "../src/map/MapThemeProvider";
+import { LaunchTransition } from "../src/components/LaunchTransition";
+import * as SplashScreen from "expo-splash-screen";
+void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export { ErrorBoundary } from "expo-router";
 
@@ -21,6 +25,7 @@ function RootNavigator() {
       >
         <Stack.Screen name="(tabs)" />
       </Stack>
+      <LaunchTransition />
     </>
   );
 }
@@ -28,13 +33,15 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <PowerProvider>
-          <RoamProvider>
-            <AssistantProvider>
-              <RootNavigator />
-            </AssistantProvider>
-          </RoamProvider>
-        </PowerProvider>
+        <MapThemeProvider>
+          <PowerProvider>
+            <RoamProvider>
+              <AssistantProvider>
+                <RootNavigator />
+              </AssistantProvider>
+            </RoamProvider>
+          </PowerProvider>
+        </MapThemeProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

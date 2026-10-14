@@ -24,7 +24,7 @@ export function RoamAssistant({
   onPlaces: (category: PlaceCategory) => void;
 }) {
   const assistant = useAssistant();
-  const { tripState } = useRoam();
+  const { tripState, navigation } = useRoam();
   const {
     theme: { colors },
   } = useTheme();
@@ -71,9 +71,9 @@ export function RoamAssistant({
             key={message.id}
             style={{
               gap: space.xs,
-              borderLeftWidth: message.role === "assistant" ? 2 : 0,
+              borderLeftWidth: 0,
               borderLeftColor: message.error ? colors.danger : colors.accent,
-              paddingLeft: message.role === "assistant" ? space.sm : 0,
+              paddingLeft: 0,
               paddingVertical: space.xxs,
             }}
           >
@@ -84,11 +84,15 @@ export function RoamAssistant({
               selectable
               style={{
                 ...type.body,
+                fontSize: message.role === "assistant" ? 19 : 14,
+                lineHeight: message.role === "assistant" ? 28 : 21,
                 color: message.role === "user" ? colors.muted : colors.text,
               }}
             >
-              {message.error
-                ? "ROAM couldn’t complete that request. Your trip is kept. Try again."
+              {message.error && /\b(AI|Gemini|backend)\b/i.test(message.text)
+                ? navigation.mode === "native"
+                  ? "AI is temporarily unavailable. Navigation is still active."
+                  : "AI is temporarily unavailable. Your plans are kept."
                 : message.text}
             </Text>
             {message.category && (

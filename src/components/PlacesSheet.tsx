@@ -11,7 +11,7 @@ import type { Place, PlaceCategory, PlaceSuggestion } from "../types/domain";
 import { BottomSheet } from "./BottomSheet";
 import { PlaceList, SuggestionsList } from "./PlaceList";
 import { GoogleAttribution } from "./GoogleAttribution";
-import { Button, Icon } from "./ui";
+import { Button, Icon, IconButton } from "./ui";
 import { StatusCard } from "./StatusCard";
 import { acknowledge } from "../services/haptics";
 
@@ -147,6 +147,13 @@ export function PlacesSheet({
             autoCorrect={false}
             style={{ minHeight: 54, flex: 1, color: colors.text, fontSize: 15 }}
           />
+          {!!query && (
+            <IconButton
+              icon="close"
+              label="Clear search"
+              onPress={() => setQuery("")}
+            />
+          )}
         </View>
       )}
       <ScrollView

@@ -36,3 +36,5 @@ modules/roam-navigation/ios/vendor/
 !modules/roam-navigation/ios/providers/
 !modules/roam-navigation/ios/providers/**
 .netrc
+!modules/roam-navigation/ios/map/
+!modules/roam-navigation/ios/map/**

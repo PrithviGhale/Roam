@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name = 'RoamNavigation'
-  s.version = '0.8.0'
+  s.version = '0.9.0'
   s.summary = 'ROAM provider-neutral navigation bridge'
   s.description = s.summary
   s.author = 'ROAM'
@@ -8,7 +8,8 @@ Pod::Spec.new do |s|
   s.license = { :type => 'MIT' }
   s.platforms = { :ios => '16.4' }
   s.source = { :git => s.homepage }
-  s.source_files = 'RoamNavigationModule.swift', 'NavigationProvider.swift', 'providers/mapbox/**/*.swift', 'providers/google/DisabledGoogleNavigationProvider.swift'
+  s.source_files = 'RoamNavigationModule.swift', 'NavigationProvider.swift', 'providers/mapbox/**/*.swift', 'map/**/*.swift', 'providers/google/DisabledGoogleNavigationProvider.swift'
+  s.resource_bundles = { 'RoamMapThemes' => ['map/themes/*.json'] }
   s.swift_version = '5.9'
   s.static_framework = true
   s.dependency 'ExpoModulesCore'

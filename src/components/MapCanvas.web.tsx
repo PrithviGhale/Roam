@@ -23,8 +23,8 @@ export function MapCanvas({ destination }: MapCanvasProps) {
         ]}
       >
         <Text style={{ color: colors.muted, textAlign: "center" }}>
-          Browser UI preview. Open ROAM on iPhone with the Google Maps provider
-          to view the driving route.
+          Browser UI preview. Open ROAM on iPhone with the ROAM development build
+          to see the custom Mapbox map.
         </Text>
       </View>
     );

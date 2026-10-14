@@ -31,7 +31,7 @@ export function PlaceList({
       {places.map((place, index) => {
         const facts = [
           place.rating !== undefined
-            ? `★ ${place.rating.toFixed(1)}${place.ratingCount !== undefined ? ` · ${place.ratingCount} reviews` : ""}`
+            ? `â˜… ${place.rating.toFixed(1)}${place.ratingCount !== undefined ? ` · ${place.ratingCount} reviews` : ""}`
             : null,
           place.businessStatus === "CLOSED_PERMANENTLY"
             ? "Permanently closed"
@@ -53,12 +53,12 @@ export function PlaceList({
             onPress={() => onSelect(place)}
             style={({ pressed }) => ({
               minHeight: 88,
-              padding: space.md,
+              paddingVertical: space.md,
               gap: space.sm,
               borderRadius: radius.lg,
-              borderWidth: 1,
+              borderWidth: 0,
               borderColor: colors.border,
-              backgroundColor: colors.surface,
+              backgroundColor: "transparent",
               opacity: disabled ? 0.45 : pressed ? 0.7 : 1,
             })}
           >
@@ -111,7 +111,7 @@ export function PlaceList({
                       alignSelf: "center",
                     }}
                   >
-                    {place.verifiedDetour.distanceMeters < 0 ? "−" : "+"}
+                    {place.verifiedDetour.distanceMeters < 0 ? "âˆ’" : "+"}
                     {formatDistance(
                       Math.abs(place.verifiedDetour.distanceMeters),
                     )}

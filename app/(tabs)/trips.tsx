@@ -40,7 +40,7 @@ export default function TripsScreen() {
   };
   return (
     <Page
-      title="Your journey"
+      title="The journey"
       subtitle={
         trip
           ? "One route. Room for a few good stops."
@@ -92,7 +92,7 @@ export default function TripsScreen() {
                     style={{
                       width: 32,
                       height: 32,
-                      borderRadius: radius.sm,
+                      borderRadius: radius.pill,
                       backgroundColor: colors.accentSoft,
                       alignItems: "center",
                       justifyContent: "center",

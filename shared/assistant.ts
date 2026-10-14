@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { LIMITS } from "./limits";
+import { phrasingSchema } from "./composition";
 
 export const toolNames = [
   "searchFood",
@@ -24,6 +25,7 @@ const search = z
     nearDestination: z.boolean().optional(),
     timeAheadMinutes: z.number().min(1).max(120).optional(),
     maxDetourMinutes: z.number().min(0).max(60).optional(),
+    excludeTerms: z.array(text).max(3).optional(),
   })
   .strict();
 const reference = z
@@ -65,6 +67,7 @@ export const planSchema = z
       "chat",
     ]),
     recommendationPlaceId: text.optional(),
+    phrasing: phrasingSchema.optional(),
     clarification: z
       .enum(["whichPlace", "whichStop", "confirmAdd", "clarifyRequest"])
       .optional(),

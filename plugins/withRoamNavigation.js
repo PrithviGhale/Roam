@@ -50,6 +50,9 @@ module.exports = function withRoamNavigation(config) {
   config = withInfoPlist(config, (config) => {
     config.modResults.ROAMNavigationEnabled = false;
     config.modResults.ROAMNavigationProvider = "mapbox";
+    const styleURL = process.env.EXPO_PUBLIC_MAPBOX_STYLE_URL?.trim() ?? "";
+    if (/^mapbox:\/\/styles\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+$/.test(styleURL)) config.modResults.RoamMapStyleURL = styleURL;
+    else delete config.modResults.RoamMapStyleURL;
     config.modResults.MBXAccessToken =
       process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim() || "";
     return config;

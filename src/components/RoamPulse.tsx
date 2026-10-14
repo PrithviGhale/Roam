@@ -1,8 +1,8 @@
-import { useEffect, useRef } from "react";
-import { Animated, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Animated, Text, View, AppState } from "react-native";
 import { useTheme } from "../themes/ThemeProvider";
 import { useReducedMotion } from "../hooks/useReducedMotion";
-import { motion, radius, space, type } from "../design/tokens";
+import { radius, space, type } from "../design/tokens";
 import type { VoicePhase } from "../services/voice/types";
 
 export const voiceLabels: Record<VoicePhase, string> = {
@@ -26,39 +26,68 @@ export function RoamPulse({
   size = 44,
   label = false,
   followUp = false,
+  navigationAlert = false,
 }: {
   phase?: VoicePhase;
   size?: number;
   label?: boolean;
   followUp?: boolean;
+  navigationAlert?: boolean;
 }) {
   const {
     theme: { colors },
   } = useTheme();
   const reduced = useReducedMotion();
-  const animation = useRef(new Animated.Value(0)).current;
-  const moving = !["inactive", "armed", "error", "cooldown"].includes(phase);
+  const lanes = useRef([
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+  ]).current;
+  const [foreground, setForeground] = useState(
+    AppState.currentState === "active",
+  );
   useEffect(() => {
-    animation.stopAnimation();
-    animation.setValue(0);
-    if (reduced || !moving) return;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(animation, {
-          toValue: 1,
-          duration: motion.pulse / 2,
-          useNativeDriver: true,
-        }),
-        Animated.timing(animation, {
-          toValue: 0,
-          duration: motion.pulse / 2,
-          useNativeDriver: true,
-        }),
-      ]),
+    const listener = AppState.addEventListener("change", (state) =>
+      setForeground(state === "active"),
     );
-    loop.start();
-    return () => loop.stop();
-  }, [animation, reduced, moving]);
+    return () => listener.remove();
+  }, []);
+  const moving =
+    navigationAlert || !["inactive", "error", "cooldown"].includes(phase);
+  useEffect(() => {
+    lanes.forEach((lane) => {
+      lane.stopAnimation();
+      lane.setValue(0);
+    });
+    if (reduced || !moving || !foreground) return;
+    const duration =
+      phase === "armed"
+        ? 2200
+        : phase === "listening"
+          ? 850
+          : phase === "speaking"
+            ? 1200
+            : 1550;
+    const animations = lanes.map((lane, index) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(index * 100),
+          Animated.timing(lane, {
+            toValue: 1,
+            duration: duration / 2,
+            useNativeDriver: true,
+          }),
+          Animated.timing(lane, {
+            toValue: 0,
+            duration: duration / 2,
+            useNativeDriver: true,
+          }),
+        ]),
+      ),
+    );
+    animations.forEach((animation) => animation.start());
+    return () => animations.forEach((animation) => animation.stop());
+  }, [lanes, reduced, moving, foreground, phase]);
   const color =
     phase === "error"
       ? colors.danger
@@ -68,7 +97,11 @@ export function RoamPulse({
   return (
     <View
       accessibilityLabel={
-        followUp ? "Listening for your answer" : voiceLabels[phase]
+        navigationAlert
+          ? "Navigation update"
+          : followUp
+            ? "Listening for your answer"
+            : voiceLabels[phase]
       }
       style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}
     >
@@ -77,36 +110,33 @@ export function RoamPulse({
         style={{
           width: size,
           height: size,
-          borderRadius: radius.md,
-          borderWidth: 1,
-          borderColor: color,
-          backgroundColor: colors.accentSoft,
+
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "center",
           gap: size / 10,
         }}
       >
-        {[0.32, 0.5, 0.4].map((height, index) => (
+        {[0, 1, 2].map((index) => (
           <Animated.View
             key={index}
             style={{
-              width: size / 12,
-              height: size * height,
+              width: size / 9,
+              height: size * (index === 1 ? 0.62 : 0.48),
               borderRadius: radius.sm,
               backgroundColor: color,
               transform: [
                 { skewX: "-16deg" },
                 {
-                  translateY: animation.interpolate({
+                  translateY: lanes[index]!.interpolate({
                     inputRange: [0, 1],
                     outputRange: [0, ((index === 1 ? -1 : 1) * size) / 12],
                   }),
                 },
               ],
-              opacity: animation.interpolate({
+              opacity: lanes[index]!.interpolate({
                 inputRange: [0, 1],
-                outputRange: [0.7, 1],
+                outputRange: [phase === "armed" ? 0.5 : 0.72, 1],
               }),
             }}
           />

@@ -2,7 +2,7 @@
 
 **Your AI for the road.** An iPhone-first app for planning a drive, finding useful stops, and talking to a driving assistant.
 
-**Version: 0.8.0** · Expo SDK 57 · React Native · TypeScript
+**Version: 0.9.0** · Expo SDK 57 · React Native · TypeScript
 
 ## What ROAM does
 
@@ -16,13 +16,17 @@
 
 Without a backend, discovery uses clearly labeled fictional demo places.
 
-## What V0.8 adds
+## What V0.9 adds
 
-Mapbox Navigation **3.32.0** and Maps **11.32.0** now sit behind ROAM's native iOS bridge. The new adapter handles route progress, snapped position, turns, rerouting, ordered stops, and arrival. ROAM keeps its own screens and uses its existing voice controller for Mapbox's timed spoken instructions.
+- A map-first screen with compact search, lighter shortcuts, and a floating navigation dock.
+- ROAM Night and Day maps with road hierarchy, parks, buildings, highway labels, and a smaller vehicle puck.
+- A three-stroke launch transition and independently animated ROAM Pulse.
+- Cleaner Driving Mode, Trips, settings, and assistant conversations.
+- A conservative AI planner plus a grounded response composer, shorter driving replies, brand exclusions, and better session references.
 
-Configured iOS builds prefer Mapbox for route previews and detour comparisons. Each route and comparison records its provider. A failed stop update keeps your current trip. Google Navigation remains disabled and excluded from the build; Google Places remains discovery, with results in attributed lists and cards rather than markers on a Mapbox map.
+Mapbox Navigation **3.32.0** and Maps **11.32.0** stay pinned. ROAM keeps its custom interface, verified detours, ordered stops, native guidance, and existing voice controller. Google Navigation stays disabled; Google Places remains discovery in attributed lists/cards.
 
-**The EAS iOS simulator development build compiled successfully.** Live Mapbox routing and physical iPhone driving still need your tokens and device checks. The [V0.8 guide](docs/v08-mapbox-navigation.md) records the build, setup, costs, and remaining checks.
+Native build and device-review results are recorded in the [V0.9 experience guide](docs/v09-experience.md). Real iPhone visuals, audio, and driving still need device checks.
 
 ## Run the project
 
@@ -43,7 +47,7 @@ Mapbox needs an account and billing setup. Set `EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN`
 
 For an iPhone on your Wi-Fi, use your computer's LAN address in the backend URL, such as `http://YOUR_LAN_IP:8787`. A published backend should use HTTPS.
 
-Use the Worker from this revision with the V0.8 app. If you use a published backend, update it so the assistant accepts the new route-provider fields.
+Use the Worker from this revision with the V0.9 app. If you use a published backend, update it to enable the new planner and response composer.
 
 Start these in separate terminals:
 
@@ -87,8 +91,8 @@ npx expo-doctor
 npm run server:build
 ```
 
-V0.8 has **228 passing tests**, including all 190 previous tests. iOS, Android, and web exports check JavaScript bundles; they do not prove that native guidance works on an iPhone.
+V0.9 has **265 passing tests**, including all 228 previous tests. TypeScript and Expo Doctor pass, and the iOS simulator build succeeds. iOS, Android, and web exports check JavaScript bundles; they do not prove that native guidance works on an iPhone.
 
 This is a development prototype. It does not yet provide background navigation, CarPlay, downloaded offline regions, a route-alternative selector, weather, fuel prices, or community reports. Native voice needs its own build and permissions. Messages and navigation details stay in memory; the recoverable trip plan lasts up to six hours.
 
-Read the [V0.8 navigation guide](docs/v08-mapbox-navigation.md) and [simulator/iPhone checklist](docs/v08-iphone-checklist.md). Earlier work remains documented in the [V0.7 guide](docs/v07-navigation.md) and [V0.6 reliability notes](docs/v06-reliability.md).
+Read the [V0.9 experience guide](docs/v09-experience.md). Native setup remains in the [V0.8 navigation guide](docs/v08-mapbox-navigation.md) and [simulator/iPhone checklist](docs/v08-iphone-checklist.md). Earlier work remains documented in the [V0.7 guide](docs/v07-navigation.md) and [V0.6 reliability notes](docs/v06-reliability.md).

@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
+import { useMapTheme } from "../map/MapThemeProvider";
+import { roamDark } from "../themes/roamDark";
+import { roamLight } from "../themes/roamLight";
 import { useTheme } from "../themes/ThemeProvider";
 import { mapsService } from "../services/maps";
 import { hasGoogleServices } from "../services/config";
@@ -21,7 +24,8 @@ export function LegacyMapCanvas({
   route,
   stops,
 }: MapCanvasProps) {
-  const { theme } = useTheme();
+  const mapTheme = useMapTheme();
+  const theme = mapTheme.theme === "night" ? roamDark : roamLight;
   const { navigation, navigator, tripState } = useRoam();
   const reduced = useReducedMotion();
   const map = useRef<MapView>(null);

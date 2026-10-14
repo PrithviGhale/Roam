@@ -52,52 +52,54 @@ export function DriveBar({ planning = false }: { planning?: boolean }) {
       style={{
         opacity: fade,
         backgroundColor: colors.surface,
-        borderWidth: 1,
+        borderWidth: 0,
         borderColor: colors.border,
         borderRadius: radius.lg,
-        padding: space.md,
+        padding: planning ? space.md : space.sm,
         gap: space.sm,
       }}
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`View trip to ${trip.destination.name}`}
-        onPress={() => router.navigate("/trips")}
-        style={{
-          minHeight: 44,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: space.sm,
-        }}
-      >
-        <View
+      {planning && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`View trip to ${trip.destination.name}`}
+          onPress={() => router.navigate("/trips")}
           style={{
-            width: 3,
-            height: 32,
-            borderRadius: radius.sm,
-            backgroundColor: colors.route,
+            minHeight: 44,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: space.sm,
           }}
-        />
-        <View style={{ flex: 1, gap: space.xxs }}>
-          <Text
-            numberOfLines={1}
-            style={{ ...type.heading, color: colors.text }}
-          >
-            {trip.destination.name}
-          </Text>
-          <Text
-            numberOfLines={1}
-            style={{ ...type.small, color: colors.muted }}
-          >
-            {next
-              ? `Next · ${next.place.name}`
-              : planning
-                ? "Your destination"
-                : "Destination ahead"}
-          </Text>
-        </View>
-        <Icon name="chevron-forward" color={colors.muted} size={18} />
-      </Pressable>
+        >
+          <View
+            style={{
+              width: 3,
+              height: 32,
+              borderRadius: radius.sm,
+              backgroundColor: colors.route,
+            }}
+          />
+          <View style={{ flex: 1, gap: space.xxs }}>
+            <Text
+              numberOfLines={1}
+              style={{ ...type.title, color: colors.text }}
+            >
+              {trip.destination.name}
+            </Text>
+            <Text
+              numberOfLines={1}
+              style={{ ...type.small, color: colors.muted }}
+            >
+              {next
+                ? `Next · ${next.place.name}`
+                : planning
+                  ? "Your destination"
+                  : "Destination ahead"}
+            </Text>
+          </View>
+          <Icon name="chevron-forward" color={colors.muted} size={18} />
+        </Pressable>
+      )}
       {loading ? (
         <RoamPulse phase="usingTool" label />
       ) : error ? (
@@ -114,10 +116,10 @@ export function DriveBar({ planning = false }: { planning?: boolean }) {
               rowGap: space.xs,
             }}
           >
-            <Text style={{ ...type.heading, color: colors.text }}>
+            <Text style={{ ...type.title, color: colors.text }}>
               {formatDuration(progress.durationSeconds)}
             </Text>
-            <Text style={{ ...type.heading, color: colors.text }}>
+            <Text style={{ ...type.title, color: colors.text }}>
               {formatDistance(progress.distanceMeters)}
             </Text>
             <Text
@@ -150,15 +152,13 @@ export function DriveBar({ planning = false }: { planning?: boolean }) {
               />
             </View>
           )}
-          {!planning && (
+          {!planning && navigation.mode !== "native" && (
             <Text style={{ ...type.small, color: colors.muted }}>
-              {navigation.mode === "native"
-                ? "Remaining journey"
-                : progress.offRoute
-                  ? "Checking your position against the route"
-                  : progress.estimated
-                    ? "Remaining journey · GPS estimate"
-                    : "Last route estimate · waiting for accurate GPS"}
+              {progress.offRoute
+                ? "Checking your position against the route"
+                : progress.estimated
+                  ? "Remaining journey · GPS estimate"
+                  : "Last route estimate · waiting for accurate GPS"}
             </Text>
           )}
         </>
@@ -194,7 +194,9 @@ export function DriveBar({ planning = false }: { planning?: boolean }) {
           Try route again
         </Button>
       )}
-      {trip.route && <GoogleAttribution compact places={[trip.destination]} />}
+      {planning && trip.route && (
+        <GoogleAttribution compact places={[trip.destination]} />
+      )}
     </Animated.View>
   );
 }

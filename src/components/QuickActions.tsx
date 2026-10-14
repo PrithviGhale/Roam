@@ -28,8 +28,8 @@ export function QuickActions({
           style={({ pressed }) => ({
             backgroundColor: colors.surface,
             borderColor: colors.border,
-            borderWidth: 1,
-            borderRadius: 12,
+            borderWidth: 0,
+            borderRadius: 24,
             minHeight: 44,
             paddingHorizontal: 12,
             gap: 7,
@@ -39,7 +39,7 @@ export function QuickActions({
           })}
         >
           <Icon name={action.icon} size={17} color={colors.accent} />
-          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "600" }}>
+          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>
             {action.label}
           </Text>
         </Pressable>

@@ -1,4 +1,7 @@
 import type { TripState } from "../types/domain";
+export function mapChromeBudget(height: number, top: number): number {
+  return Math.max(120, Math.min(height * 0.42, height - top - 120));
+}
 export function tripMode(state: TripState): "planning" | "driving" {
   return state.trip?.startedAt &&
     state.trip.destination.source === "verified" &&

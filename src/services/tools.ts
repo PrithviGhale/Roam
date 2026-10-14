@@ -25,6 +25,7 @@ export interface TripPort {
   refreshAtomic?(expected: ActiveTrip, signal?: AbortSignal): Promise<boolean>;
 }
 export interface SearchArguments {
+  excludeTerms?: string[];
   query?: string;
   maxResults?: number;
   minRating?: number;
@@ -138,6 +139,12 @@ export function createTripTools(
         "Tell me what place to search for.",
       );
     results = results
+      .filter(
+        (place) =>
+          !(args.excludeTerms ?? []).some((term) =>
+            place.name.toLowerCase().includes(term.toLowerCase().trim()),
+          ),
+      )
       .filter(
         (place) =>
           place.source === "verified" &&

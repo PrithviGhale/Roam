@@ -35,6 +35,7 @@ import type { DetourService } from "../detours";
 import { detourInsertionIndex, freshDetour } from "../detours";
 import { distanceBetween } from "../../utils/geo";
 import { LIMITS } from "../../../shared/limits";
+import { recommendationText, localConversation } from "./composition";
 
 export interface AssistantReply {
   text: string;
@@ -488,9 +489,9 @@ export class AssistantEngine {
         result.places = result.places.map((place) => this.currentResult(place));
       const chosen = driving
         ? result.places?.[0]
-        : result.places?.find(
+        : (result.places?.find(
             (place) => place.id === plan.recommendationPlaceId,
-          );
+          ) ?? result.places?.[0]);
       const current = this.trip.getSnapshot().trip;
       if (
         chosen &&
@@ -504,8 +505,10 @@ export class AssistantEngine {
           trip: current,
           expires: this.now() + referenceLifetime,
         };
-        const text = `${driving ? chosen.name + " is the top option." : `I found ${result.places!.length} verified options.`}${chosen.rating !== undefined ? ` Rated ${chosen.rating.toFixed(1)}.` : ""}${chosen.verifiedDetour ? ` ${formatDetour(chosen.verifiedDetour.durationSeconds)} compared with your route.` : " Driving detour unavailable."} Want to add ${driving ? "it" : chosen.name} as a stop?`;
-        return present({ ...result, text, spokenText: text });
+        return present({
+          ...result,
+          ...recommendationText(chosen, driving, plan.phrasing),
+        });
       }
       return present(result);
     }
@@ -542,6 +545,33 @@ export class AssistantEngine {
     signal?: AbortSignal,
     onState?: (state: VoiceState) => void,
   ): Promise<AssistantReply> {
+    const conversation = localConversation(input);
+    if (conversation && !this.busy) return this.reply(conversation);
+    if (
+      !this.busy &&
+      /\b(what was|tell me about|give me|what about)\b/i.test(input) &&
+      /\b(first|second|third|fourth|fifth)\b/i.test(input) &&
+      !explicit("add", input)
+    ) {
+      const place = resolveReference(this.recentResults(), input, {});
+      if (place) {
+        const current = this.trip.getSnapshot().trip;
+        if (current?.route)
+          this.pending = {
+            action: "add",
+            id: place.id,
+            name: place.name,
+            trip: current,
+            expires: this.now() + referenceLifetime,
+          };
+        return this.reply(
+          current?.route
+            ? recommendationText(place, !!current.startedAt).text
+            : `${place.name}${place.address ? ` · ${place.address}` : ""}.`,
+          { places: this.recentResults() },
+        );
+      }
+    }
     if (this.busy)
       throw new ServiceError(
         "invalid-data",

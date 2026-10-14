@@ -28,7 +28,7 @@ public class RoamNavigationModule: Module {
     AsyncFunction("simulate") { (enabled: Bool) in MainActor.assumeIsolated { NavigationProviderRegistry.selected.simulate(enabled) } }.runOnQueue(.main)
     AsyncFunction("licenses") { "Mapbox Maps and Navigation: https://www.mapbox.com/about/maps/\nSDK source licenses: https://github.com/mapbox/mapbox-navigation-ios/blob/3.32.0/LICENSE.md\nMapbox and OpenStreetMap attribution stays visible in the map's attribution control." }.runOnQueue(.main)
     View(MapboxRoamView.self) {
-      Events("onCameraChange")
+      Events("onCameraChange", "onMapStatus")
       Prop("theme") { (view: MapboxRoamView, value: String) in view.theme(value) }
       Prop("waypoints") { (_: MapboxRoamView, _: [RoamWaypoint]) in } // map shows SDK waypoints only
       Prop("cameraMode") { (view: MapboxRoamView, value: String) in view.cameraMode = value; view.updateCamera() }

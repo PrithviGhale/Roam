@@ -12,8 +12,8 @@ export const space = {
 export const radius = { sm: 8, md: 12, lg: 20, xl: 28, pill: 999 } as const;
 export const type = {
   display: {
-    fontSize: 32,
-    lineHeight: 38,
+    fontSize: 36,
+    lineHeight: 42,
     fontWeight: "700",
     letterSpacing: -1,
   } as TextStyle,
@@ -33,8 +33,8 @@ export const type = {
     letterSpacing: 1.5,
   } as TextStyle,
   metric: {
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 34,
+    lineHeight: 40,
     fontWeight: "600",
     fontVariant: ["tabular-nums"],
   } as TextStyle,
@@ -44,19 +44,19 @@ export const elevation = { flat: 0, chrome: 2 } as const;
 export const touch = { min: 44, primary: 52 } as const;
 export const palettes = {
   dark: {
-    background: "#0C1216",
-    surface: "#151D23",
+    background: "#101416",
+    surface: "#1B2023",
     elevated: "#202A32",
-    border: "#34414A",
+    border: "#2D3435",
     text: "#F6F4EF",
     muted: "#ABB7BF",
-    accent: "#E8BA77",
+    accent: "#D6B785",
     onAccent: "#211A11",
     accentSoft: "#332A20",
     danger: "#FFB1A6",
     warning: "#F1CB8C",
     success: "#A7D5B7",
-    route: "#E8BA77",
+    route: "#D6B785",
     selected: "#332A20",
     listening: "#F6CF97",
     scrim: "#05090DBB",

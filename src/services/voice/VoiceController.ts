@@ -434,7 +434,8 @@ export class VoiceController {
       if (this.settings.autoSpeak && (fromVoice || this.trip))
         this.play(
           reply.error
-            ? "ROAM couldn’t complete that request. Please try again."
+            ? (reply.errorSpokenText ??
+                "ROAM couldn’t complete that request. Please try again.")
             : this.settings.shortReplies && this.trip
               ? reply.spokenText
               : reply.text,

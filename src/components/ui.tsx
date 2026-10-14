@@ -149,10 +149,10 @@ export function Eyebrow({ children }: PropsWithChildren) {
 }
 const styles = StyleSheet.create({
   iconButton: {
-    width: touch.min,
-    height: touch.min,
-    borderRadius: radius.md,
-    borderWidth: 1,
+    minWidth: touch.min,
+    minHeight: touch.min,
+    borderRadius: radius.pill,
+    borderWidth: 0,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
   },
   panel: {
     borderRadius: radius.lg,
-    borderWidth: 1,
+    borderWidth: 0,
     padding: space.md,
   },
 });

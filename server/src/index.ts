@@ -8,6 +8,7 @@ import { enforceRateLimits } from "./rateLimits";
 import { diagnosticProbe, probeGemini } from "./diagnostics";
 import { enforceBudget } from "./costControls";
 import { RequestError } from "./http";
+import { createComposer, type Compose } from "./composer";
 
 export type ServerEnv = Cloudflare.Env & {
   GEMINI_API_KEY?: string;
@@ -63,6 +64,7 @@ export function createHandler(
     google?: typeof proxyGoogle;
     verifyUser?: UserTokenVerifier;
     probeGemini?: typeof probeGemini;
+    compose?: Compose;
   } = {},
 ) {
   return async (request: Request, env: ServerEnv): Promise<Response> => {
@@ -162,6 +164,10 @@ export function createHandler(
             env.GEMINI_API_KEY,
             input,
             signal,
+            dependencies.compose ??
+              (dependencies.generate
+                ? undefined
+                : createComposer(env.GEMINI_API_KEY, env.GEMINI_MODEL)),
           ),
         );
       }

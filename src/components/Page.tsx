@@ -25,14 +25,16 @@ export function Page({
     alignSelf: "center" as const,
     padding: layout.gutter,
     gap: space.lg,
-    ...(scroll ? {} : { flex: 1, minHeight: 0 }),
+    ...(scroll
+      ? {}
+      : { flex: 1, minHeight: 0, paddingBottom: 90 + insets.bottom }),
   };
   const content = (
     <>
       <View style={{ gap: space.xxs }}>
         <Text
           accessibilityRole="header"
-          style={{ ...type.title, color: colors.text }}
+          style={{ ...type.display, color: colors.text }}
         >
           {title}
         </Text>
@@ -52,7 +54,7 @@ export function Page({
           keyboardDismissMode="interactive"
           contentContainerStyle={[
             style,
-            { paddingBottom: space.xxl + insets.bottom },
+            { paddingBottom: 100 + insets.bottom },
           ]}
         >
           {content}

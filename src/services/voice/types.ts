@@ -75,6 +75,7 @@ export interface VoicePorts {
     text: string;
     error?: boolean;
     confirmation?: boolean;
+    errorSpokenText?: string;
   }>;
   clearConfirmation(): void;
   acknowledge(): void;

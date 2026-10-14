@@ -144,9 +144,9 @@ export function ManeuverRail() {
     <View
       style={{
         backgroundColor: colors.surface,
-        borderRadius: radius.lg,
-        borderWidth: 1,
-        borderColor: colors.border,
+        borderRadius: radius.md,
+        borderLeftWidth: 3,
+        borderLeftColor: colors.accent,
         padding: space.md,
         gap: space.sm,
       }}
@@ -159,7 +159,10 @@ export function ManeuverRail() {
           color={colors.accent}
         />
         <View style={{ flex: 1, gap: space.xs }}>
-          <Text style={{ ...type.metric, color: colors.text }}>
+          <Text
+            maxFontSizeMultiplier={1.4}
+            style={{ ...type.metric, color: colors.text }}
+          >
             {arrived
               ? "You’ve arrived"
               : stop
@@ -170,7 +173,10 @@ export function ManeuverRail() {
                     ? "Waiting for guidance"
                     : drivingDistance(g?.distanceToManeuverMeters ?? NaN)}
           </Text>
-          <Text style={{ ...type.heading, color: colors.text }}>
+          <Text
+            numberOfLines={2}
+            style={{ ...type.heading, color: colors.text }}
+          >
             {arrived
               ? tripState.trip?.destination.name
               : stop
@@ -178,7 +184,10 @@ export function ManeuverRail() {
                 : g?.roadName || "Your next direction"}
           </Text>
           {!arrived && !stop && g && (
-            <Text style={{ ...type.body, color: colors.muted }}>
+            <Text
+              numberOfLines={2}
+              style={{ ...type.small, color: colors.muted }}
+            >
               {g.instruction}
             </Text>
           )}
@@ -209,16 +218,6 @@ export function ManeuverRail() {
             }}
           >
             Continue Trip
-          </Button>
-          <Button
-            secondary
-            disabled={busy}
-            onPress={() => {
-              setBusy(true);
-              void continueNavigationStop().finally(() => setBusy(false));
-            }}
-          >
-            Mark Complete
           </Button>
         </>
       )}

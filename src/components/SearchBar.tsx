@@ -15,10 +15,10 @@ export function SearchBar({ onPress }: { onPress: () => void }) {
       style={({ pressed }) => ({
         backgroundColor: colors.surface,
         borderColor: colors.border,
-        borderWidth: 1,
-        borderRadius: radius.md,
+        borderWidth: 0,
+        borderRadius: radius.pill,
         paddingHorizontal: space.md,
-        minHeight: 52,
+        minHeight: 50,
         flexDirection: "row",
         alignItems: "center",
         gap: 13,
@@ -28,7 +28,7 @@ export function SearchBar({ onPress }: { onPress: () => void }) {
       <Icon name="search-outline" color={colors.accent} size={22} />
       <View style={{ flex: 1, gap: 4 }}>
         <Text style={{ ...type.body, color: colors.text, fontWeight: "600" }}>
-          Where to next?
+          Where are we going?
         </Text>
       </View>
       <Icon name="arrow-forward-outline" size={19} color={colors.muted} />

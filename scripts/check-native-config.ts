@@ -20,7 +20,7 @@ async function main() {
   assert.ok(!plist.UIBackgroundModes?.includes("audio"));
   assert.ok(!plist.UIBackgroundModes?.includes("location"));
   assert.equal(exp.sdkVersion, "57.0.0");
-  assert.equal(exp.version, "0.8.0");
+  assert.equal(exp.version, "0.9.0");
   assert.equal(exp.ios?.bundleIdentifier, "com.prithvighale.roam");
   assert.equal(exp.orientation, "portrait");
   const eas = JSON.parse(readFileSync("eas.json", "utf8"));
@@ -55,7 +55,7 @@ async function main() {
     !serialized.includes("accesskey") && !serialized.includes("access-key"),
   );
   console.log(
-    "Native config passed: SDK 57 / V0.8, microphone/speech/foreground location, no background audio/location, no wake AccessKey in public extra.",
+    "Native config passed: SDK 57 / V0.9, microphone/speech/foreground location, no background audio/location, no wake AccessKey in public extra.",
   );
 }
 void main().catch(() => {

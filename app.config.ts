@@ -6,7 +6,7 @@ const config: ExpoConfig = {
   name: "ROAM",
   slug: "roam",
   owner: "pghale",
-  version: "0.8.0",
+  version: "0.9.0",
   orientation: "portrait",
   scheme: "roam",
   userInterfaceStyle: "automatic",
@@ -25,6 +25,15 @@ const config: ExpoConfig = {
     ),
   },
   plugins: [
+    [
+      "expo-splash-screen",
+      {
+        backgroundColor: "#101416",
+        image: "./assets/splash-mark.png",
+        imageWidth: 72,
+        resizeMode: "contain",
+      },
+    ],
     "expo-router",
     "expo-dev-client",
     "expo-font",

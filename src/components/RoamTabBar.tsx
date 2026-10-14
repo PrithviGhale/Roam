@@ -26,11 +26,19 @@ export function RoamTabBar({ state, navigation }: BottomTabBarProps) {
   return (
     <View
       style={{
-        backgroundColor: colors.background,
-        borderTopWidth: 1,
-        borderTopColor: colors.border,
+        backgroundColor: colors.surface,
+        position: "absolute",
+        bottom: insets.bottom + 12,
+        left: 18 + insets.left,
+        right: 18 + insets.right,
+        borderRadius: 26,
+        shadowColor: "#000",
+        shadowOpacity: 0.12,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 6 },
+        elevation: 4,
         paddingTop: space.xs,
-        paddingBottom: Math.max(insets.bottom, space.xs),
+        paddingBottom: space.xs,
         paddingLeft: insets.left + space.xs,
         paddingRight: insets.right + space.xs,
         flexDirection: "row",
@@ -62,12 +70,12 @@ export function RoamTabBar({ state, navigation }: BottomTabBarProps) {
             }
             style={{
               flex: 1,
-              minHeight: 56,
+              minHeight: 48,
               alignItems: "center",
               justifyContent: "center",
               gap: space.xxs,
               borderRadius: radius.md,
-              backgroundColor: selected ? colors.selected : colors.background,
+              backgroundColor: "transparent",
             }}
           >
             {route.name === "roam" ? (

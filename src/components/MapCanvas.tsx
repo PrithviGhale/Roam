@@ -35,7 +35,7 @@ export function MapCanvas(props: MapCanvasProps) {
   const { theme } = useTheme();
   const mapTheme = useMapTheme();
   const { navigation, navigator } = useRoam();
-  const [mapboxAvailable, setMapboxAvailable] = useState(false);
+  const [mapboxAvailable, setMapboxAvailable] = useState<boolean | null>(null);
   const [mapFailed, setMapFailed] = useState(false);
   useEffect(() => {
     let mounted = true;
@@ -46,6 +46,26 @@ export function MapCanvas(props: MapCanvasProps) {
       mounted = false;
     };
   }, [navigator]);
+  if (NativeMap && mapboxAvailable === null)
+    return (
+      <View
+        style={[
+          StyleSheet.absoluteFill,
+          { backgroundColor: theme.colors.background },
+        ]}
+      >
+        <Text
+          accessibilityLiveRegion="polite"
+          style={{
+            color: theme.colors.muted,
+            textAlign: "center",
+            marginTop: (props.topInset ?? 80) + 24,
+          }}
+        >
+          Opening ROAM map…
+        </Text>
+      </View>
+    );
   if (
     !NativeMap ||
     mapFailed ||

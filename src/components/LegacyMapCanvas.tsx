@@ -133,8 +133,8 @@ export function LegacyMapCanvas({
             lineHeight: 21,
           }}
         >
-          This build does not include native Google Maps.\nOpen ROAM in a
-          Google-enabled iOS development build to display real routes.
+          The navigation map is unavailable. On iPhone, use the ROAM development
+          build and check Mapbox setup in Profile → Device diagnostics.
         </Text>
       </View>
     );
